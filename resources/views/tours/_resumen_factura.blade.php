@@ -27,24 +27,25 @@
         <input type="number" step="0.01" id="descuento_especial" name="descuento_especial"
                value="{{ old('descuento_especial', $tour->descuento_especial ?? 0) }}"
                class="w-full text-right px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+    </div>
 
-        <span class="text-base font-semibold text-gray-800 dark:text-slate-100">P.V. Final</span>
+    <hr class="my-4 border-gray-200 dark:border-slate-700 max-w-md">
+
+    <div class="flex items-center justify-between max-w-md">
+        <span class="text-base font-semibold text-gray-800 dark:text-slate-100">Total</span>
         <span id="resumen-pv-final" class="text-right text-2xl font-bold text-emerald-600 dark:text-emerald-400" data-value="{{ $resumen['pv_final'] }}"></span>
     </div>
 
-    <hr class="my-5 border-gray-200 dark:border-slate-700">
+    <div class="mt-6 max-w-[160px]">
+        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Reserva (%)</label>
+        <input type="number" min="0" max="100" name="reserva_pct" value="{{ old('reserva_pct', $tour->reserva_pct ?? 30) }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+    </div>
 
-    <div class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Notas Adicionales</label>
-            <div id="editor-notas-adicionales" class="bg-white dark:bg-slate-800 rounded-b-lg">{!! old('notas_adicionales', $tour->notas_adicionales ?? '') !!}</div>
-            <input type="hidden" name="notas_adicionales" id="input-notas-adicionales">
-            <p class="text-xs text-gray-400 mt-1 dark:text-slate-500">Se guarda con la cotización y se imprime en el documento final.</p>
-        </div>
-        <div class="max-w-[160px]">
-            <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Reserva (%)</label>
-            <input type="number" min="0" max="100" name="reserva_pct" value="{{ old('reserva_pct', $tour->reserva_pct ?? 30) }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-        </div>
+    <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Notas Adicionales</label>
+        <div id="editor-notas-adicionales" class="bg-white dark:bg-slate-800 rounded-b-lg">{!! old('notas_adicionales', $tour->notas_adicionales ?? '') !!}</div>
+        <input type="hidden" name="notas_adicionales" id="input-notas-adicionales">
+        <p class="text-xs text-gray-400 mt-1 dark:text-slate-500">Se guarda con la cotización y se imprime en el documento final.</p>
     </div>
 
     <div class="flex flex-wrap gap-3 mt-6">
@@ -101,14 +102,17 @@ document.addEventListener('DOMContentLoaded', () => {
         let pvPromo = 0;
 
         document.querySelectorAll('.itinerario-row').forEach((tr) => {
-            const idInput = tr.querySelector('.itinerario-id-input');
-            const id = idInput?.value;
+            const actividadSelect = tr.querySelector('.itinerario-actividad');
+            const id = actividadSelect?.value;
             if (!id) return;
             const cantidad = parseFloat(tr.querySelector('.itinerario-cantidad')?.value || '0') || 0;
+            const cantidadNinos = parseFloat(tr.querySelector('.itinerario-cantidad-ninos')?.value || '0') || 0;
             const regular = parseFloat(window.itinerarioCostos?.[id] ?? 0) || 0;
             const promo = parseFloat(window.itinerarioCostosPromo?.[id] ?? regular) || 0;
-            pvRegular += regular * cantidad;
-            pvPromo += promo * cantidad;
+            const regularNino = parseFloat(window.itinerarioCostosNino?.[id] ?? 0) || 0;
+            const promoNino = parseFloat(window.itinerarioCostosPromoNino?.[id] ?? regularNino) || 0;
+            pvRegular += (regular * cantidad) + (regularNino * cantidadNinos);
+            pvPromo += (promo * cantidad) + (promoNino * cantidadNinos);
         });
 
         document.querySelectorAll('.hospedaje-block').forEach((block) => {

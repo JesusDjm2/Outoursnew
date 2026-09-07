@@ -30,7 +30,7 @@
                         </div>
                         <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                             <i class="fa-solid fa-file-pdf mb-2 text-brand"></i>
-                            <p class="text-sm text-slate-300">Itinerarios en PDF</p>
+                            <p class="text-sm text-slate-300">Actividades en PDF</p>
                         </div>
                         <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                             <i class="fa-solid fa-route mb-2 text-brand"></i>
@@ -79,6 +79,10 @@
                                             <i class="fa-solid fa-eye" id="togglePasswordIcon"></i>
                                         </button>
                                     </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" name="remember" id="remember" class="h-4 w-4 rounded border-white/20 bg-slate-800 text-brand focus:ring-2 focus:ring-brand/20">
+                                    <label for="remember" class="text-sm text-slate-300">Recordar mis datos de ingreso</label>
                                 </div>
                                 <button type="submit" class="w-full rounded-2xl bg-brand px-4 py-3 font-semibold text-white transition hover:bg-brand-dark hover:scale-[1.01]">
                                     Ingresar al administrador

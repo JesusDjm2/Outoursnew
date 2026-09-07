@@ -2,98 +2,172 @@
 @section('title', $tour->nombre)
 @section('content')
 
+@php
+    $resumen = $tour->calcularResumenFactura();
+    $monedaSimbolo = $tour->moneda === 'PEN' ? 'S/ ' : '$ ';
+    $formatMoney = fn ($valor) => $monedaSimbolo . number_format((float) $valor, 2);
+
+    $estadoReservaBadge = fn (?string $estado) => match ($estado) {
+        'confirmada' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
+        'cancelada' => 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400',
+        'reservado_pasajero' => 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400',
+        default => 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
+    };
+    $estadoReservaIcono = fn (?string $estado) => match ($estado) {
+        'confirmada' => 'fa-circle-check',
+        'cancelada' => 'fa-circle-xmark',
+        'reservado_pasajero' => 'fa-user-check',
+        default => 'fa-clock',
+    };
+    $estadoReservaLabel = fn (?string $estado) => match ($estado) {
+        'confirmada' => 'Confirmada',
+        'cancelada' => 'Cancelada',
+        'reservado_pasajero' => 'Reservado por el pasajero',
+        default => 'Pendiente',
+    };
+@endphp
+
 <div class="relative overflow-hidden rounded-3xl shadow-xl mb-8 hero-reveal">
     <div class="absolute inset-0">
         @if($tour->imagen_path)
             <img src="{{ asset('storage/' . $tour->imagen_path) }}" class="w-full h-full object-cover">
         @else
-            <div class="w-full h-full bg-gradient-to-br from-slate-800 via-slate-700 to-cyan-900"></div>
+            <div class="w-full h-full bg-gradient-to-br from-slate-100 via-slate-200 to-cyan-100 dark:from-slate-800 dark:via-slate-700 dark:to-cyan-900"></div>
         @endif
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-slate-950/10"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-white/95 via-white/75 to-white/40 dark:from-slate-950/95 dark:via-slate-950/60 dark:to-slate-950/20"></div>
     </div>
 
-    <div class="relative px-6 py-14 sm:px-10 sm:py-20 text-white">
-        <span class="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] border border-white/20">
-            <i class="fas fa-hashtag"></i> {{ $tour->codigo }}
-        </span>
-        <h1 class="mt-4 text-3xl sm:text-5xl font-bold tracking-tight">{{ $tour->nombre }}</h1>
-        <p class="mt-3 text-slate-200 flex items-center gap-2 text-sm sm:text-base">
-            <i class="fas fa-calendar-days"></i>
-            @if($tour->fecha_inicio && $tour->fecha_fin)
-                {{ \Illuminate\Support\Carbon::parse($tour->fecha_inicio)->translatedFormat('d M Y') }}
-                &mdash;
-                {{ \Illuminate\Support\Carbon::parse($tour->fecha_fin)->translatedFormat('d M Y') }}
-            @else
-                Sin fechas de itinerario aún
-            @endif
-        </p>
+    <div class="relative px-5 py-5 sm:px-8 sm:py-6 text-gray-900 dark:text-white">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 lg:max-w-xl">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-black/5 backdrop-blur px-3 py-1.5 text-sm font-bold tracking-wide border border-black/10 dark:bg-white/10 dark:border-white/20">
+                        <i class="fas fa-hashtag text-[11px] opacity-70"></i> {{ $tour->codigo }}
+                    </span>
+                    <div class="flex shrink-0 gap-1.5">
+                        <a href="{{ route('tours.pdf', $tour) }}" target="_blank" title="Descargar PDF de cotización"
+                           class="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-500 text-white hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/30">
+                            <i class="fas fa-file-pdf text-sm"></i>
+                        </a>
+                        <a href="{{ route('tours.itinerario-pdf', $tour) }}" target="_blank" title="Descargar itinerario de viaje"
+                           class="flex h-9 w-9 items-center justify-center rounded-full bg-purple-500 text-white hover:bg-purple-400 transition shadow-lg shadow-purple-500/30">
+                            <i class="fas fa-book-open text-sm"></i>
+                        </a>
+                        <a href="{{ route('tours.edit', $tour) }}" title="Editar Tour"
+                           class="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 border border-black/10 backdrop-blur hover:bg-black/10 transition dark:bg-white/10 dark:border-white/30 dark:hover:bg-white/20">
+                            <i class="fas fa-pen text-sm"></i>
+                        </a>
+                        <a href="{{ route('tours.habitaciones', $tour) }}" title="Asignar Habitaciones"
+                           class="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 border border-black/10 backdrop-blur hover:bg-black/10 transition dark:bg-white/10 dark:border-white/30 dark:hover:bg-white/20">
+                            <i class="fas fa-bed text-sm"></i>
+                        </a>
+                    </div>
+                </div>
+                <p class="mt-2 text-gray-600 dark:text-slate-200 flex items-center gap-2 text-sm">
+                    <i class="fas fa-calendar-days"></i>
+                    @if($tour->fecha_inicio && $tour->fecha_fin)
+                        {{ \Illuminate\Support\Carbon::parse($tour->fecha_inicio)->translatedFormat('d M Y') }}
+                        &mdash;
+                        {{ \Illuminate\Support\Carbon::parse($tour->fecha_fin)->translatedFormat('d M Y') }}
+                    @else
+                        Sin fechas de itinerario aún
+                    @endif
+                </p>
 
-        <div class="mt-8 flex flex-wrap gap-3">
-            <a href="{{ route('tours.pdf', $tour) }}" target="_blank"
-               class="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/30">
-                <i class="fas fa-file-pdf"></i> Descargar PDF
-            </a>
-            <a href="{{ route('tours.edit', $tour) }}"
-               class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/30 backdrop-blur px-5 py-2.5 text-sm font-semibold hover:bg-white/20 transition">
-                <i class="fas fa-pen"></i> Editar Tour
-            </a>
-            <a href="{{ route('tours.habitaciones', $tour) }}"
-               class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/30 backdrop-blur px-5 py-2.5 text-sm font-semibold hover:bg-white/20 transition">
-                <i class="fas fa-bed"></i> Asignar Habitaciones
-            </a>
+                @php
+                    $paxDetalles = [
+                        ['label' => 'Agente', 'value' => $tour->agente],
+                        ['label' => 'Nombre Pax', 'value' => $tour->nombre_pax],
+                        ['label' => 'Edad', 'value' => $tour->edad_pax],
+                        ['label' => 'Contacto', 'value' => trim(($tour->codigo_pais ?? '') . ' ' . ($tour->contacto_pax ?? ''))],
+                        ['label' => 'Canal', 'value' => $tour->canal],
+                        ['label' => 'Fecha cotización', 'value' => $tour->fecha_cotizacion],
+                        ['label' => 'Pax adultos', 'value' => $tour->pax_adultos],
+                        ['label' => 'Pax niños', 'value' => $tour->pax_ninos],
+                        ['label' => 'País', 'value' => $tour->pais],
+                        ['label' => 'Depto/Estado', 'value' => $tour->departamento_estado],
+                        ['label' => 'Fecha llegada', 'value' => $tour->fecha_llegada],
+                        ['label' => 'Hora llegada', 'value' => $tour->hora_llegada],
+                    ];
+                @endphp
+                <dl class="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-3 border-t border-black/10 dark:border-white/15 pt-4">
+                    @foreach($paxDetalles as $item)
+                    <div class="min-w-0">
+                        <dt class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">{{ $item['label'] }}</dt>
+                        @if($item['value'] !== null && $item['value'] !== '')
+                            <dd class="text-sm font-medium text-gray-800 dark:text-slate-100 truncate">{{ $item['value'] }}</dd>
+                        @else
+                            <dd class="text-sm italic text-amber-600 dark:text-amber-400/90 truncate">Sin datos</dd>
+                        @endif
+                    </div>
+                    @endforeach
+                </dl>
+            </div>
+
+            <div class="w-full lg:w-80 lg:shrink-0">
+                <div class="rounded-2xl border border-black/10 bg-black/5 backdrop-blur-md p-4 shadow-xl shadow-black/10 dark:border-white/15 dark:bg-white/10 dark:shadow-black/20">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-slate-200">
+                            <i class="fas fa-file-invoice-dollar mr-1.5 text-emerald-600 dark:text-emerald-300"></i> Total del tour
+                        </span>
+                        @if($resumen['total_descuento'] > 0)
+                            <span class="shrink-0 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold px-2 py-0.5 border border-emerald-200 dark:bg-emerald-400/20 dark:text-emerald-200 dark:border-emerald-300/30">
+                                -{{ $formatMoney($resumen['total_descuento']) }}
+                            </span>
+                        @endif
+                    </div>
+                    <p class="mt-1 text-2xl sm:text-[1.75rem] font-bold text-gray-900 dark:text-white leading-tight">{{ $formatMoney($resumen['pv_final']) }}</p>
+
+                    <dl class="mt-3 space-y-1 text-xs border-t border-black/10 dark:border-white/15 pt-3">
+                        <div class="flex items-center justify-between">
+                            <dt class="text-gray-500 dark:text-slate-300">P.V. Regular</dt>
+                            <dd class="font-medium text-gray-800 dark:text-slate-100">{{ $formatMoney($resumen['pv_regular']) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-gray-500 dark:text-slate-300">P.V. Promo</dt>
+                            <dd class="font-medium text-gray-800 dark:text-slate-100">{{ $formatMoney($resumen['pv_promo']) }}</dd>
+                        </div>
+                        @if(($tour->precio_adicional ?? 0) > 0)
+                        <div class="flex items-center justify-between">
+                            <dt class="text-gray-500 dark:text-slate-300">Precio adicional</dt>
+                            <dd class="font-medium text-gray-800 dark:text-slate-100">{{ $formatMoney($tour->precio_adicional) }}</dd>
+                        </div>
+                        @endif
+                        @if(($tour->descuento_especial ?? 0) > 0)
+                        <div class="flex items-center justify-between">
+                            <dt class="text-gray-500 dark:text-slate-300">Descuento especial</dt>
+                            <dd class="font-medium text-gray-800 dark:text-slate-100">{{ $formatMoney($tour->descuento_especial) }}</dd>
+                        </div>
+                        @endif
+                    </dl>
+
+                    <div class="mt-3 flex items-center justify-between rounded-xl bg-black/5 px-3 py-2 border border-black/5 dark:bg-white/10 dark:border-white/10">
+                        <span class="text-[11px] text-gray-600 dark:text-slate-200"><i class="fas fa-hand-holding-dollar mr-1.5"></i> Reserva ({{ (int) ($tour->reserva_pct ?? 0) }}%)</span>
+                        <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-300">{{ $formatMoney($resumen['monto_reserva']) }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-@if($tour->nombre_pax || $tour->agente || $tour->pax_adultos || $tour->pax_ninos)
-<div class="space-y-4 mb-10">
-    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 dark:text-slate-100">
-        <i class="fas fa-user-tag text-blue-600"></i> Datos Pax
-    </h2>
-    <div class="scroll-reveal bg-white rounded-2xl shadow p-6 sm:p-8 dark:bg-slate-900 dark:shadow-slate-950/50">
-        <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
-            @foreach([
-                ['Agente', $tour->agente],
-                ['Nombre Pax', $tour->nombre_pax],
-                ['Edad', $tour->edad_pax],
-                ['Contacto', $tour->contacto_pax],
-                ['Canal', $tour->canal],
-                ['Fecha de cotización', $tour->fecha_cotizacion],
-                ['Pax adultos', $tour->pax_adultos],
-                ['Pax niños', $tour->pax_ninos],
-                ['País', $tour->pais],
-                ['Código de país', $tour->codigo_pais],
-                ['Departamento/Estado', $tour->departamento_estado],
-                ['Fecha de llegada', $tour->fecha_llegada],
-                ['Hora de llegada', $tour->hora_llegada],
-            ] as [$label, $value])
-                @if($value !== null && $value !== '')
-                <div>
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">{{ $label }}</dt>
-                    <dd class="text-gray-800 dark:text-slate-100">{{ $value }}</dd>
+<div class="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-10">
+    <div class="lg:col-span-7 space-y-4">
+        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 dark:text-slate-100">
+            <i class="fas fa-route text-purple-600"></i> Actividad
+        </h2>
+
+        @forelse($tour->itineraries as $index => $itinerary)
+        <details class="group scroll-reveal bg-white rounded-2xl shadow overflow-hidden dark:bg-slate-900 dark:shadow-slate-950/50">
+            <summary class="list-none cursor-pointer flex items-center gap-4 p-5 hover:bg-gray-50 dark:hover:bg-slate-800/60 [&::-webkit-details-marker]:hidden">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
+                    {{ $index + 1 }}
                 </div>
-                @endif
-            @endforeach
-        </dl>
-    </div>
-</div>
-@endif
-
-<div class="space-y-6 mb-10">
-    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 dark:text-slate-100">
-        <i class="fas fa-route text-purple-600"></i> Itinerario
-    </h2>
-
-    @forelse($tour->itineraries as $index => $itinerary)
-    <div class="scroll-reveal bg-white rounded-2xl shadow p-6 sm:p-8 dark:bg-slate-900 dark:shadow-slate-950/50">
-        <div class="flex items-start gap-4">
-            <div class="flex-shrink-0 w-11 h-11 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold">
-                {{ $index + 1 }}
-            </div>
-            <div class="flex-1 min-w-0">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-slate-100">{{ $itinerary->nombre }}</h3>
+                <h3 class="flex-1 min-w-0 text-base font-semibold text-gray-900 truncate dark:text-slate-100">{{ $itinerary->nombre }}</h3>
+                <i class="fas fa-chevron-right text-gray-400 text-xs transition-transform duration-200 group-open:rotate-90 dark:text-slate-500 shrink-0"></i>
+            </summary>
+            <div class="border-t border-gray-100 px-5 pt-4 pb-5 dark:border-slate-800">
                 @if($itinerary->descripcion)
-                    <p class="text-gray-600 mt-1 dark:text-slate-400">{{ $itinerary->descripcion }}</p>
+                    <div class="rich-text text-gray-600 dark:text-slate-400 [&_a]:underline [&_a]:text-blue-600 dark:[&_a]:text-blue-400 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_p]:mb-1 last:[&_p]:mb-0">{!! $itinerary->descripcion !!}</div>
                 @endif
 
                 @if($itinerary->incluye || $itinerary->no_incluye)
@@ -101,100 +175,134 @@
                     @if($itinerary->incluye)
                     <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-4 dark:bg-emerald-900/20 dark:border-emerald-900/40">
                         <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1 dark:text-emerald-400"><i class="fas fa-check-circle mr-1"></i> Incluye</p>
-                        <p class="text-sm text-emerald-800 whitespace-pre-line dark:text-emerald-300">{{ $itinerary->incluye }}</p>
+                        <div class="rich-text text-sm text-emerald-800 dark:text-emerald-300 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_p]:mb-1 last:[&_p]:mb-0">{!! $itinerary->incluye !!}</div>
                     </div>
                     @endif
                     @if($itinerary->no_incluye)
                     <div class="rounded-xl bg-rose-50 border border-rose-100 p-4 dark:bg-rose-900/20 dark:border-rose-900/40">
                         <p class="text-xs font-semibold uppercase tracking-wide text-rose-700 mb-1 dark:text-rose-400"><i class="fas fa-times-circle mr-1"></i> No incluye</p>
-                        <p class="text-sm text-rose-800 whitespace-pre-line dark:text-rose-300">{{ $itinerary->no_incluye }}</p>
+                        <div class="rich-text text-sm text-rose-800 dark:text-rose-300 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_p]:mb-1 last:[&_p]:mb-0">{!! $itinerary->no_incluye !!}</div>
                     </div>
                     @endif
                 </div>
                 @endif
 
-            </div>
-        </div>
-    </div>
-    @empty
-    <p class="text-gray-500 dark:text-slate-400">Este tour aún no tiene itinerarios.</p>
-    @endforelse
-</div>
-
-@if($tour->hospedajes->isNotEmpty())
-<div class="space-y-4 mb-10">
-    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 dark:text-slate-100">
-        <i class="fas fa-hotel text-indigo-600"></i> Hospedajes
-    </h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        @foreach($tour->hospedajes as $hospedaje)
-        <div class="scroll-reveal rounded-xl border border-gray-200 bg-white shadow overflow-hidden dark:border-slate-800 dark:bg-slate-900 dark:shadow-slate-950/50">
-            <div class="h-28 bg-gray-100 dark:bg-slate-800">
-                @if($hospedaje->hotel->imagen_path)
-                    <img src="{{ asset('storage/' . $hospedaje->hotel->imagen_path) }}" class="w-full h-full object-cover">
-                @else
-                    <div class="w-full h-full flex items-center justify-center text-gray-300 dark:text-slate-600"><i class="fas fa-hotel text-2xl"></i></div>
+                @if(!$itinerary->descripcion && !$itinerary->incluye && !$itinerary->no_incluye)
+                    <p class="text-sm text-gray-400 dark:text-slate-500">Sin más detalles registrados para esta actividad.</p>
                 @endif
             </div>
-            <div class="p-4">
-                <p class="font-semibold text-gray-800 dark:text-slate-100">{{ $hospedaje->hotel->nombre }}</p>
-                <p class="text-xs text-gray-500 mt-1 dark:text-slate-400">
-                    <i class="fas fa-calendar-days w-4 text-gray-400 dark:text-slate-500"></i>
-                    {{ \Illuminate\Support\Carbon::parse($hospedaje->fecha_ingreso)->translatedFormat('d M') }}
-                    &mdash;
-                    {{ \Illuminate\Support\Carbon::parse($hospedaje->fecha_salida)->translatedFormat('d M Y') }}
-                </p>
-                @if($hospedaje->asignaciones->isNotEmpty())
-                <div class="flex flex-wrap gap-1.5 mt-3">
-                    @foreach($hospedaje->asignaciones as $asignacion)
-                    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 text-[11px] px-2 py-1 dark:bg-indigo-900/40 dark:text-indigo-300">
-                        <i class="fas fa-user"></i> {{ $asignacion->passenger->nombre }}
-                        @if($asignacion->room)
-                            · <i class="fas fa-bed"></i> {{ $asignacion->room->nombre }} #{{ $asignacion->room->numero_habitacion }}
+        </details>
+        @empty
+        <div class="bg-white rounded-2xl shadow px-6 py-10 text-center text-gray-500 dark:bg-slate-900 dark:shadow-slate-950/50 dark:text-slate-400">
+            Este tour aún no tiene itinerarios.
+        </div>
+        @endforelse
+    </div>
+
+    <div class="lg:col-span-3 space-y-4">
+        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 dark:text-slate-100">
+            <i class="fas fa-hotel text-indigo-600"></i> Hoteles
+        </h2>
+        <div class="scroll-reveal bg-white rounded-2xl shadow p-5 dark:bg-slate-900 dark:shadow-slate-950/50">
+            @if($tour->hospedajes->isEmpty())
+                <p class="text-sm text-gray-400 dark:text-slate-500">Esta cotización no tiene hoteles asignados.</p>
+            @else
+                <div class="space-y-3">
+                    @foreach($tour->hospedajes as $hospedaje)
+                    <div class="rounded-xl border border-gray-200 p-3 dark:border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 dark:bg-slate-800">
+                                @if($hospedaje->hotel->imagen_path)
+                                    <img src="{{ asset('storage/' . $hospedaje->hotel->imagen_path) }}" class="h-full w-full object-cover">
+                                @else
+                                    <div class="h-full w-full flex items-center justify-center text-gray-300 dark:text-slate-600"><i class="fas fa-hotel"></i></div>
+                                @endif
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between gap-2">
+                                    <p class="text-sm font-semibold text-gray-800 truncate dark:text-slate-100">{{ $hospedaje->hotel->nombre }}</p>
+                                    <span class="shrink-0 inline-flex items-center gap-1 rounded-full text-[10px] font-medium px-2 py-0.5 {{ $estadoReservaBadge($hospedaje->estado_reserva) }}">
+                                        <i class="fas {{ $estadoReservaIcono($hospedaje->estado_reserva) }}"></i> {{ $estadoReservaLabel($hospedaje->estado_reserva) }}
+                                    </span>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-slate-400">
+                                    <i class="fas fa-calendar-days w-4 text-gray-400 dark:text-slate-500"></i>
+                                    {{ \Illuminate\Support\Carbon::parse($hospedaje->fecha_ingreso)->translatedFormat('d M') }}
+                                    &mdash;
+                                    {{ \Illuminate\Support\Carbon::parse($hospedaje->fecha_salida)->translatedFormat('d M Y') }}
+                                </p>
+                            </div>
+                        </div>
+                        @if($hospedaje->asignaciones->isNotEmpty())
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            @foreach($hospedaje->asignaciones as $asignacion)
+                            <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 text-[11px] px-2 py-1 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                <i class="fas fa-user"></i> {{ $asignacion->passenger->nombre }}
+                                @if($asignacion->room)
+                                    · <i class="fas fa-bed"></i> {{ $asignacion->room->nombre }} #{{ $asignacion->room->numero_habitacion }}
+                                @endif
+                            </span>
+                            @endforeach
+                        </div>
+                        @else
+                        <p class="text-xs text-gray-400 mt-3 dark:text-slate-500">Sin habitaciones asignadas todavía.</p>
                         @endif
-                    </span>
+                    </div>
                     @endforeach
                 </div>
-                @else
-                <p class="text-xs text-gray-400 mt-3 dark:text-slate-500">Sin habitaciones asignadas todavía.</p>
-                @endif
-            </div>
+            @endif
         </div>
-        @endforeach
+
+        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 pt-2 dark:text-slate-100">
+            <i class="fas fa-truck-fast text-amber-600"></i> Proveedores
+        </h2>
+        <div class="scroll-reveal bg-white rounded-2xl shadow p-5 dark:bg-slate-900 dark:shadow-slate-950/50">
+            @if($tour->proveedores->isEmpty())
+                <p class="text-sm text-gray-400 dark:text-slate-500">Esta cotización no tiene proveedores asignados.</p>
+            @else
+                <div class="space-y-3">
+                    @foreach($tour->proveedores as $proveedor)
+                    <div class="rounded-xl border border-gray-200 p-3 dark:border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 dark:bg-slate-800">
+                                @if($proveedor->imagenes->isNotEmpty())
+                                    <img src="{{ asset('storage/' . $proveedor->imagenes->first()->path) }}" class="h-full w-full object-cover">
+                                @else
+                                    <div class="h-full w-full flex items-center justify-center text-gray-300 dark:text-slate-600"><i class="fas fa-industry"></i></div>
+                                @endif
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between gap-2">
+                                    <p class="text-sm font-semibold text-gray-800 truncate dark:text-slate-100">{{ $proveedor->nombre }}</p>
+                                    <span class="shrink-0 flex items-center gap-1.5">
+                                        <span class="rounded-full bg-amber-50 text-amber-700 text-[10px] font-medium px-2 py-0.5 dark:bg-amber-900/40 dark:text-amber-300">
+                                            {{ $proveedor->tipo?->nombre ?? 'Sin tipo' }}
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 rounded-full text-[10px] font-medium px-2 py-0.5 {{ $estadoReservaBadge($proveedor->pivot->estado_reserva) }}">
+                                            <i class="fas {{ $estadoReservaIcono($proveedor->pivot->estado_reserva) }}"></i> {{ $estadoReservaLabel($proveedor->pivot->estado_reserva) }}
+                                        </span>
+                                    </span>
+                                </div>
+                                <p class="text-xs text-gray-500 truncate dark:text-slate-400">
+                                    {{ $proveedor->email }}{{ $proveedor->email && $proveedor->telefono ? ' · ' : '' }}{{ $proveedor->telefono }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
     </div>
 </div>
-@endif
 
-@if($tour->proveedores->isNotEmpty())
-<div class="space-y-4">
+@if($tour->notas_adicionales)
+<div class="space-y-4 mb-10">
     <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2 dark:text-slate-100">
-        <i class="fas fa-truck-fast text-amber-600"></i> Proveedores
+        <i class="fas fa-note-sticky text-emerald-600"></i> Notas Adicionales
     </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        @foreach($tour->proveedores as $proveedor)
-        <div class="scroll-reveal bg-white rounded-2xl shadow overflow-hidden dark:bg-slate-900 dark:shadow-slate-950/50">
-            @if($proveedor->imagenes->isNotEmpty())
-            <div class="grid grid-cols-3 gap-0.5 bg-gray-100 dark:bg-slate-800">
-                @foreach($proveedor->imagenes->take(3) as $imagen)
-                    <img src="{{ asset('storage/' . $imagen->path) }}" class="h-20 w-full object-cover">
-                @endforeach
-            </div>
-            @endif
-            <div class="p-4">
-                <div class="flex items-center justify-between gap-2">
-                    <p class="font-semibold text-gray-800 dark:text-slate-100">{{ $proveedor->nombre }}</p>
-                    <span class="shrink-0 rounded-full bg-amber-50 text-amber-700 text-[11px] font-medium px-2.5 py-1 dark:bg-amber-900/40 dark:text-amber-300">
-                        {{ $proveedor->tipo?->nombre ?? 'Sin tipo' }}
-                    </span>
-                </div>
-                <p class="text-sm text-gray-500 mt-1 space-y-0.5 dark:text-slate-400">
-                    @if($proveedor->email)<a href="mailto:{{ $proveedor->email }}" class="block hover:text-amber-600"><i class="fas fa-envelope w-4 text-gray-400 dark:text-slate-500"></i> {{ $proveedor->email }}</a>@endif
-                    @if($proveedor->telefono)<a href="tel:{{ $proveedor->telefono }}" class="block hover:text-amber-600"><i class="fas fa-phone w-4 text-gray-400 dark:text-slate-500"></i> {{ $proveedor->telefono }}</a>@endif
-                    @if($proveedor->direccion)<span class="block"><i class="fas fa-map-marker-alt w-4 text-gray-400 dark:text-slate-500"></i> {{ $proveedor->direccion }}</span>@endif
-                </p>
-            </div>
-        </div>
-        @endforeach
+    <div class="scroll-reveal bg-white rounded-2xl shadow p-6 sm:p-8 dark:bg-slate-900 dark:shadow-slate-950/50">
+        <div class="rich-text text-sm text-gray-700 dark:text-slate-300 [&_a]:underline [&_a]:text-blue-600 dark:[&_a]:text-blue-400 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5">{!! $tour->notas_adicionales !!}</div>
     </div>
 </div>
 @endif

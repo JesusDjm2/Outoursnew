@@ -1,8 +1,9 @@
 @extends('layouts.app')
 @section('title', 'Nueva Categoría')
 @section('content')
-<h1 class="text-2xl font-bold text-gray-800 mb-6 dark:text-slate-100">Nueva Categoría</h1>
-<div class="bg-white rounded-xl shadow p-6 md:p-8 max-w-3xl dark:bg-slate-900 dark:shadow-slate-950/50">
+<h1 class="text-2xl font-bold text-gray-800 mb-1 dark:text-slate-100">Nueva Categoría</h1>
+<a href="{{ route('destinos.index') }}" class="text-blue-600 text-sm mb-5 inline-block dark:text-blue-400"><i class="fas fa-arrow-left"></i> Volver a Destinos</a>
+<div class="bg-white rounded-xl shadow p-6 md:p-8 dark:bg-slate-900 dark:shadow-slate-950/50">
     <form method="POST" action="{{ route('categorias.store') }}">
         @csrf
         <div class="mb-4">

@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Categoria extends Model
 {
@@ -16,10 +15,5 @@ class Categoria extends Model
     public function destino(): BelongsTo
     {
         return $this->belongsTo(Destino::class);
-    }
-
-    public function subcategorias(): HasMany
-    {
-        return $this->hasMany(Subcategoria::class);
     }
 }

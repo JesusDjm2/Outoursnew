@@ -1,6 +1,6 @@
 @php
     $tour = $tour ?? null;
-    $idiomaValue = old('idioma', $tour?->idioma);
+    $idiomaValue = old('idioma', $tour?->idioma ?? 'ingles');
     $monedaValue = old('moneda', $tour?->moneda ?? 'USD');
     $idiomasOpciones = ['ingles' => 'Inglés', 'espanol' => 'Español', 'portugues' => 'Portugués'];
 @endphp

@@ -55,4 +55,8 @@
         </tbody>
     </table>
 </div>
+
+<div class="mt-4">
+    {{ $passengers->links() }}
+</div>
 @endsection

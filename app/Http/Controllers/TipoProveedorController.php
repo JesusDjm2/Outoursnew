@@ -10,8 +10,7 @@ class TipoProveedorController extends Controller
 {
     public function index()
     {
-        $tipos = TipoProveedor::withCount('proveedores')->orderBy('nombre')->get();
-        return view('tipos_proveedor.index', compact('tipos'));
+        return redirect()->route('proveedores.index');
     }
 
     public function create()
@@ -27,7 +26,7 @@ class TipoProveedorController extends Controller
 
         TipoProveedor::create($validated);
 
-        return redirect()->route('tipos-proveedor.index')->with('success', 'Tipo de proveedor creado.');
+        return redirect()->route('proveedores.index')->with('success', 'Tipo de proveedor creado.');
     }
 
     public function edit(TipoProveedor $tipo)
@@ -43,7 +42,7 @@ class TipoProveedorController extends Controller
 
         $tipo->update($validated);
 
-        return redirect()->route('tipos-proveedor.index')->with('success', 'Tipo de proveedor actualizado.');
+        return redirect()->route('proveedores.index')->with('success', 'Tipo de proveedor actualizado.');
     }
 
     public function destroy(TipoProveedor $tipo)
@@ -51,10 +50,10 @@ class TipoProveedorController extends Controller
         try {
             $tipo->delete();
         } catch (QueryException $e) {
-            return redirect()->route('tipos-proveedor.index')
+            return redirect()->route('proveedores.index')
                 ->with('error', 'No se puede eliminar: hay proveedores usando este tipo.');
         }
 
-        return redirect()->route('tipos-proveedor.index')->with('success', 'Tipo de proveedor eliminado.');
+        return redirect()->route('proveedores.index')->with('success', 'Tipo de proveedor eliminado.');
     }
 }

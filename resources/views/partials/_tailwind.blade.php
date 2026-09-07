@@ -63,6 +63,20 @@
         color: #94a3b8 !important;
     }
 
+    /* Quill — alto redimensionable manualmente (como un textarea) */
+    .ql-editor {
+        resize: vertical;
+        overflow-y: auto;
+        min-height: 120px;
+    }
+
+    /* Texto enriquecido renderizado: ignora colores/fondos que se hayan elegido
+       en el editor, para que siempre respete la paleta del tema claro/oscuro. */
+    .rich-text * {
+        color: inherit !important;
+        background-color: transparent !important;
+    }
+
     /* Quill — modo oscuro */
     .dark .ql-toolbar.ql-snow {
         background-color: #1e293b;

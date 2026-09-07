@@ -10,7 +10,10 @@ class DestinoController extends Controller
 {
     public function index()
     {
-        $destinos = Destino::withCount('categorias')->orderBy('nombre')->get();
+        $destinos = Destino::withCount('categorias')
+            ->with(['categorias' => fn ($query) => $query->orderBy('nombre')])
+            ->orderBy('nombre')
+            ->paginate(15);
         return view('destinos.index', compact('destinos'));
     }
 

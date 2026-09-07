@@ -29,7 +29,7 @@
                 </td>
                 <td class="px-6 py-4 text-right text-sm">
                     <a href="{{ route('users.edit', $user) }}" class="text-blue-600 hover:text-blue-800 mr-3 dark:text-blue-400 dark:hover:text-blue-300"><i class="fas fa-edit"></i></a>
-                    <form action="{{ route('users.destroy', $user) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar este usuario?')">
+                    <form action="{{ route('users.destroy', $user) }}" method="POST" class="inline" onsubmit="return swalConfirmSubmit(event, '¿Eliminar este usuario?')">
                         @csrf @method('DELETE')
                         <button class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"><i class="fas fa-trash"></i></button>
                     </form>

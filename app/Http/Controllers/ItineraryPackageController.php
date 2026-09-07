@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Destino;
 use App\Models\Itinerary;
 use App\Models\ItineraryPackage;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class ItineraryPackageController extends Controller
 
         $packages = ItineraryPackage::query()
             ->withCount('itineraries')
+            ->with(['itineraries' => fn ($query) => $query->with(['destino', 'categoria'])])
             ->when($q, fn($query) => $query->where('nombre', 'like', "%{$q}%"))
             ->orderBy('nombre')
             ->paginate(15)
@@ -26,7 +28,8 @@ class ItineraryPackageController extends Controller
     public function create()
     {
         $itemsSeleccionados = $this->buildItemsSeleccionadosFromOld();
-        return view('itinerary-packages.create', compact('itemsSeleccionados'));
+        $destinos = Destino::with('categorias')->orderBy('nombre')->get();
+        return view('itinerary-packages.create', compact('itemsSeleccionados', 'destinos'));
     }
 
     public function store(Request $request)
@@ -50,8 +53,9 @@ class ItineraryPackageController extends Controller
         $itemsSeleccionados = old('itinerarios') !== null
             ? $this->buildItemsSeleccionadosFromOld()
             : $itineraryPackage->itineraries;
+        $destinos = Destino::with('categorias')->orderBy('nombre')->get();
 
-        return view('itinerary-packages.edit', ['package' => $itineraryPackage, 'itemsSeleccionados' => $itemsSeleccionados]);
+        return view('itinerary-packages.edit', ['package' => $itineraryPackage, 'itemsSeleccionados' => $itemsSeleccionados, 'destinos' => $destinos]);
     }
 
     public function update(Request $request, ItineraryPackage $itineraryPackage)
@@ -83,6 +87,8 @@ class ItineraryPackageController extends Controller
             'nombre' => $itinerario->nombre,
             'costo' => $itinerario->costo,
             'costo_promo' => $itinerario->costo_promo,
+            'costo_nino' => $itinerario->costo_nino,
+            'costo_promo_nino' => $itinerario->costo_promo_nino,
             'dia' => $itinerario->pivot->dia,
             'cantidad_pax_defecto' => $itinerario->pivot->cantidad_pax_defecto,
         ])->values();

@@ -5,8 +5,8 @@
         ['name' => 'nombre_pax', 'label' => 'Nombre Pax', 'type' => 'text'],
         ['name' => 'edad_pax', 'label' => 'Edad', 'type' => 'number', 'extra' => ['min' => 0, 'max' => 120]],
         ['name' => 'contacto_pax', 'label' => 'Contacto', 'type' => 'text'],
-        ['name' => 'canal', 'label' => 'Canal de contacto', 'type' => 'text'],
-        ['name' => 'fecha_cotizacion', 'label' => 'Fecha cotización', 'type' => 'date'],
+        ['name' => 'canal', 'label' => 'Canal de contacto', 'type' => 'select', 'options' => ['Facebook', 'Instagram', 'Búsqueda web', 'Recomendación', 'Publicidad', 'Otros...']],
+        ['name' => 'fecha_cotizacion', 'label' => 'Fecha cotización', 'type' => 'date', 'default' => now()->format('Y-m-d')],
         ['name' => 'pax_adultos', 'label' => 'Pax adultos', 'type' => 'number', 'extra' => ['min' => 0]],
         ['name' => 'pax_ninos', 'label' => 'Pax niños', 'type' => 'number', 'extra' => ['min' => 0]],
         ['name' => 'pais', 'label' => 'País', 'type' => 'text'],
@@ -24,8 +24,9 @@
             'name' => $field['name'],
             'label' => $field['label'],
             'type' => $field['type'],
-            'value' => old($field['name'], $tour?->{$field['name']}),
+            'value' => old($field['name'], $tour?->{$field['name']} ?? $field['default'] ?? null),
             'extra' => $field['extra'] ?? [],
+            'options' => $field['options'] ?? [],
         ])
     @endforeach
 </div>

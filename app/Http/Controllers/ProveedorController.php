@@ -5,15 +5,42 @@ namespace App\Http\Controllers;
 use App\Models\Proveedor;
 use App\Models\ProveedorImagen;
 use App\Models\TipoProveedor;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ProveedorController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $proveedores = Proveedor::with(['imagenes', 'tipo'])->orderBy('nombre')->get();
-        return view('proveedores.index', compact('proveedores'));
+        $q = $request->query('q');
+
+        $proveedorFilter = function ($query) use ($q) {
+            $query->where('nombre', 'like', "%{$q}%")
+                ->orWhere('email', 'like', "%{$q}%")
+                ->orWhere('telefono', 'like', "%{$q}%")
+                ->orWhere('direccion', 'like', "%{$q}%");
+        };
+
+        $tiposProveedor = TipoProveedor::withCount('proveedores')
+            ->with(['proveedores' => function ($query) use ($q, $proveedorFilter) {
+                $query->with('imagenes')->orderBy('nombre');
+                if ($q) {
+                    $query->where($proveedorFilter);
+                }
+            }])
+            ->when($q, fn ($query) => $query->whereHas('proveedores', $proveedorFilter))
+            ->orderBy('nombre')
+            ->paginate(15)
+            ->withQueryString();
+
+        $proveedoresSinTipo = Proveedor::whereNull('tipo_id')
+            ->with('imagenes')
+            ->when($q, fn ($query) => $query->where($proveedorFilter))
+            ->orderBy('nombre')
+            ->get();
+
+        return view('proveedores.index', compact('tiposProveedor', 'proveedoresSinTipo', 'q'));
     }
 
     public function create()
@@ -104,11 +131,17 @@ class ProveedorController extends Controller
 
     public function destroy(Proveedor $proveedor)
     {
+        try {
+            $proveedor->delete();
+        } catch (QueryException $e) {
+            return redirect()->route('proveedores.index')
+                ->with('error', 'No se puede eliminar: hay tours usando este proveedor.');
+        }
+
         foreach ($proveedor->imagenes as $imagen) {
             Storage::disk('public')->delete($imagen->path);
         }
         Storage::disk('public')->deleteDirectory("proveedores/{$proveedor->id}");
-        $proveedor->delete();
 
         return redirect()->route('proveedores.index')->with('success', 'Proveedor eliminado.');
     }

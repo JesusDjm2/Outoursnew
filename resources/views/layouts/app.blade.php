@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="{{ asset('img/favicon-outoors.png') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     @include('partials._tailwind')
     @stack('styles')
     <style>
@@ -89,24 +90,8 @@
                 @endif
                 <p class="mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">Gestión</p>
                 <a href="{{ route('tours.index') }}"
-                    class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('tours.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
-                    <i class="fas fa-map-marked-alt w-5"></i> Cotizador de Tours
-                </a>
-                <a href="{{ route('itineraries.index') }}"
-                    class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('itineraries.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
-                    <i class="fas fa-route w-5"></i>Crear Itinerarios
-                </a>
-                <a href="{{ route('itinerary-packages.index') }}"
-                    class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('itinerary-packages.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
-                    <i class="fas fa-layer-group w-5"></i> Paquetes de Itinerarios
-                </a>
-                <a href="{{ route('destinos.index') }}"
-                    class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('destinos.*', 'categorias.*', 'subcategorias.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
-                    <i class="fas fa-sitemap w-5"></i> Categorías
-                </a>
-                <a href="{{ route('passengers.index') }}"
-                    class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('passengers.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
-                    <i class="fas fa-user-friends w-5"></i> Pasajeros
+                    class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('tours.*', 'destinos.*', 'categorias.*', 'itineraries.*', 'itinerary-packages.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
+                    <i class="fas fa-map-marked-alt w-5"></i> Cotizador
                 </a>
                 <a href="{{ route('hotels.index') }}"
                     class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('hotels.*', 'rooms.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
@@ -116,6 +101,21 @@
                     class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('proveedores.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
                     <i class="fas fa-truck-fast w-5"></i> Proveedores
                 </a>
+                @if (auth()->user()->hasAnyRole(['Reservas', 'Contabilidad', 'Administrador', 'Super Administrador']))
+                    <p class="mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">Operaciones</p>
+                @endif
+                @if (auth()->user()->hasAnyRole(['Reservas', 'Administrador', 'Super Administrador']))
+                    <a href="{{ route('reservas.index') }}"
+                        class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('reservas.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
+                        <i class="fas fa-clipboard-check w-5"></i> Reservas
+                    </a>
+                @endif
+                @if (auth()->user()->hasAnyRole(['Contabilidad', 'Administrador', 'Super Administrador']))
+                    <a href="{{ route('contabilidad.index') }}"
+                        class="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition {{ request()->routeIs('contabilidad.*') ? 'bg-cyan-500/15 text-cyan-300' : 'text-white/70 hover:bg-black/20 hover:text-white' }}">
+                        <i class="fas fa-sack-dollar w-5"></i> Contabilidad
+                    </a>
+                @endif
             </nav>
             <div class="border-t border-black/20 p-4">
                 <div class="rounded-2xl border border-black/20 bg-black/20 p-3">
@@ -124,7 +124,6 @@
                 </div>
             </div>
         </aside>
-
         <main class="flex-1 overflow-y-auto">
             <div
                 class="sticky top-0 z-40 flex items-center justify-end gap-2 border-b border-slate-200 bg-slate-100/90 px-4 py-3 backdrop-blur sm:px-6 lg:px-8 dark:border-slate-800 dark:bg-slate-950/90">
@@ -132,7 +131,8 @@
                     class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                     <i id="themeIcon" class="fa-solid fa-moon"></i>
                 </button>
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}"
+                    onsubmit="return swalConfirmSubmit(event, '¿Seguro que deseas cerrar sesión?', { title: '¿Cerrar sesión?', icon: 'question', confirmText: 'Sí, salir' });">
                     @csrf
                     <button type="submit" title="Cerrar sesión"
                         class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-red-600 shadow-sm transition hover:bg-red-50 dark:border-slate-700 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/40">
@@ -143,14 +143,22 @@
             <div class="p-4 sm:p-6 lg:p-8">
                 @if (session('success'))
                     <div
-                        class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        {{ session('success') }}
+                        class="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <span>{{ session('success') }}</span>
+                        <button type="button" onclick="this.closest('div.mb-4').remove()"
+                            class="shrink-0 text-emerald-500 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-100" title="Cerrar">
+                            <i class="fas fa-xmark"></i>
+                        </button>
                     </div>
                 @endif
                 @if (session('error'))
                     <div
-                        class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
-                        {{ session('error') }}
+                        class="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                        <span>{{ session('error') }}</span>
+                        <button type="button" onclick="this.closest('div.mb-4').remove()"
+                            class="shrink-0 text-rose-500 hover:text-rose-700 dark:text-rose-300 dark:hover:text-rose-100" title="Cerrar">
+                            <i class="fas fa-xmark"></i>
+                        </button>
                     </div>
                 @endif
                 @if ($errors->any())
@@ -168,8 +176,30 @@
             </div>
         </main>
     </div>
-
     <script>
+        function swalConfirmSubmit(event, message, options = {}) {
+            event.preventDefault();
+            const form = event.target;
+            const isDark = document.documentElement.classList.contains('dark');
+            Swal.fire({
+                title: options.title || '¿Estás seguro?',
+                text: message,
+                icon: options.icon || 'warning',
+                showCancelButton: true,
+                confirmButtonText: options.confirmText || 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#e80c13',
+                cancelButtonColor: '#64748b',
+                background: isDark ? '#1e293b' : '#ffffff',
+                color: isDark ? '#f1f5f9' : '#0f172a',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+            return false;
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const toggle = document.getElementById('themeToggle');
             const icon = document.getElementById('themeIcon');
@@ -187,6 +217,7 @@
                 const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
                 applyTheme(next);
             });
+
             gsap.from('.gsap-fade', {
                 opacity: 0,
                 y: 18,

@@ -22,7 +22,7 @@
             'titulo' => 'E-COTIZACIÓN', 'id' => 'ID', 'fecha_cot' => 'Fecha de cotización', 'agente' => 'Agente de reservas',
             'reserva' => 'Reserva tu paquete con el :pct% (:monto)',
             'llegada' => 'Llegada', 'salida' => 'Salida', 'sin_definir' => 'Por definir',
-            'fecha' => 'Fecha', 'tour_actividad' => 'Tour / Actividad', 'cant' => 'Cant.', 'p_reg' => 'P. Reg.', 'p_promo' => 'P. Promo', 'total_linea' => 'Total línea',
+            'fecha' => 'Fecha', 'tour_actividad' => 'Tour / Actividad', 'cant' => 'Cant.', 'p_reg' => 'P. Reg.', 'p_promo' => 'P. Promo', 'total_linea' => 'Total línea', 'ninos_abrev' => 'niños',
             'check_in' => 'Check in', 'check_out' => 'Check out', 'alojamiento' => 'Alojamiento', 'n_hab' => 'N° hab.', 'n_noches' => 'N° noches', 'p_reg_noche' => 'P.reg x noche', 'p_promo_noche' => 'P.promo x noche',
             'cantidad_base' => 'Cantidad base total', 'descuento_total' => 'Descuento Total', 'precio_adicional' => 'Precio adicional', 'total_final' => 'Total final',
             'terminos_titulo' => 'Términos y Condiciones', 'notas_titulo' => 'Notas Adicionales',
@@ -32,7 +32,7 @@
             'titulo' => 'E-QUOTATION', 'id' => 'ID', 'fecha_cot' => 'Quotation date', 'agente' => 'Booking agent',
             'reserva' => 'Reserve your package with :pct% (:monto)',
             'llegada' => 'Arrival', 'salida' => 'Departure', 'sin_definir' => 'To be defined',
-            'fecha' => 'Date', 'tour_actividad' => 'Tour / Activity', 'cant' => 'Qty.', 'p_reg' => 'Reg. price', 'p_promo' => 'Promo price', 'total_linea' => 'Line total',
+            'fecha' => 'Date', 'tour_actividad' => 'Tour / Activity', 'cant' => 'Qty.', 'p_reg' => 'Reg. price', 'p_promo' => 'Promo price', 'total_linea' => 'Line total', 'ninos_abrev' => 'children',
             'check_in' => 'Check in', 'check_out' => 'Check out', 'alojamiento' => 'Accommodation', 'n_hab' => 'Rooms', 'n_noches' => 'Nights', 'p_reg_noche' => 'Reg. price/night', 'p_promo_noche' => 'Promo price/night',
             'cantidad_base' => 'Base total amount', 'descuento_total' => 'Total discount', 'precio_adicional' => 'Additional price', 'total_final' => 'Final total',
             'terminos_titulo' => 'Terms and Conditions', 'notas_titulo' => 'Additional Notes',
@@ -42,7 +42,7 @@
             'titulo' => 'E-COTAÇÃO', 'id' => 'ID', 'fecha_cot' => 'Data da cotação', 'agente' => 'Agente de reservas',
             'reserva' => 'Reserve seu pacote com :pct% (:monto)',
             'llegada' => 'Chegada', 'salida' => 'Saída', 'sin_definir' => 'A definir',
-            'fecha' => 'Data', 'tour_actividad' => 'Tour / Atividade', 'cant' => 'Qtd.', 'p_reg' => 'Preço reg.', 'p_promo' => 'Preço promo', 'total_linea' => 'Total da linha',
+            'fecha' => 'Data', 'tour_actividad' => 'Tour / Atividade', 'cant' => 'Qtd.', 'p_reg' => 'Preço reg.', 'p_promo' => 'Preço promo', 'total_linea' => 'Total da linha', 'ninos_abrev' => 'crianças',
             'check_in' => 'Check in', 'check_out' => 'Check out', 'alojamiento' => 'Hospedagem', 'n_hab' => 'N° quartos', 'n_noches' => 'N° noites', 'p_reg_noche' => 'Preço reg./noite', 'p_promo_noche' => 'Preço promo/noite',
             'cantidad_base' => 'Valor base total', 'descuento_total' => 'Desconto total', 'precio_adicional' => 'Preço adicional', 'total_final' => 'Total final',
             'terminos_titulo' => 'Termos e Condições', 'notas_titulo' => 'Notas Adicionais',
@@ -265,16 +265,18 @@
         @foreach($tour->itineraries as $itinerario)
         @php
             $cant = (float) ($itinerario->pivot->cantidad_pax ?? 0);
+            $cantNinos = (float) ($itinerario->pivot->cantidad_pax_ninos ?? 0);
             $pReg = (float) ($itinerario->costo ?? 0);
             $pPromo = (float) ($itinerario->costo_promo ?? $itinerario->costo ?? 0);
+            $pPromoNino = (float) ($itinerario->costo_promo_nino ?? $itinerario->costo_nino ?? 0);
         @endphp
         <tr>
             <td>{{ $itinerario->pivot->fecha ? \Illuminate\Support\Carbon::parse($itinerario->pivot->fecha)->format('d/m/Y') : '' }}</td>
             <td colspan="2">{{ $itinerario->nombre }}</td>
-            <td>{{ $itinerario->pivot->cantidad_pax }}</td>
+            <td>{{ $itinerario->pivot->cantidad_pax }}{{ $cantNinos > 0 ? ' + ' . $cantNinos . ' ' . $t['ninos_abrev'] : '' }}</td>
             <td class="num">{{ $formatMoney($pReg) }}</td>
             <td class="num">{{ $formatMoney($pPromo) }}</td>
-            <td class="num">{{ $formatMoney($pPromo * $cant) }}</td>
+            <td class="num">{{ $formatMoney(($pPromo * $cant) + ($pPromoNino * $cantNinos)) }}</td>
         </tr>
         @endforeach
     </tbody>

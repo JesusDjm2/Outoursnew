@@ -6,8 +6,10 @@ use App\Models\Destino;
 use App\Models\HospedajePasajero;
 use App\Models\Hotel;
 use App\Models\Itinerary;
+use App\Models\ItineraryPackage;
 use App\Models\Passenger;
 use App\Models\Proveedor;
+use App\Models\ProveedorTourFecha;
 use App\Models\Room;
 use App\Models\Tour;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -18,25 +20,44 @@ use Illuminate\Support\Facades\Validator;
 
 class TourController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $q = $request->query('q');
+
         $query = Tour::with('itineraries')->latest();
 
         if (auth()->user()->hasRole('Agencia')) {
             $query->where('agencia_id', auth()->id());
         }
 
-        $tours = $query->get();
-        return view('tours.index', compact('tours'));
+        if ($q) {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('codigo', 'like', "%{$q}%")
+                    ->orWhere('nombre', 'like', "%{$q}%")
+                    ->orWhere('nombre_pax', 'like', "%{$q}%")
+                    ->orWhere('agente', 'like', "%{$q}%");
+            });
+        }
+
+        $tours = $query->paginate(15)->withQueryString();
+        $paquetes = ItineraryPackage::orderBy('nombre')->get(['id', 'nombre', 'dias', 'descripcion']);
+        return view('tours.index', compact('tours', 'paquetes', 'q'));
     }
 
-    public function create()
+    public function createChoice()
+    {
+        $paquetes = ItineraryPackage::orderBy('nombre')->get(['id', 'nombre', 'dias', 'descripcion']);
+        return view('tours.create-choice', compact('paquetes'));
+    }
+
+    public function create(Request $request)
     {
         $proveedores = Proveedor::with('tipo')->orderBy('nombre')->get();
-        $hoteles = Hotel::with('rooms')->orderBy('nombre')->get();
+        $hoteles = Hotel::with('rooms', 'destino')->orderBy('nombre')->get();
         $itinerariosSeleccionados = $this->buildItinerariosSeleccionadosFromOld();
-        $destinos = Destino::with('categorias.subcategorias')->orderBy('nombre')->get();
-        return view('tours.create', compact('proveedores', 'hoteles', 'itinerariosSeleccionados', 'destinos'));
+        $destinos = Destino::with('categorias')->orderBy('nombre')->get();
+        $paqueteSeleccionadoId = $request->query('paquete');
+        return view('tours.create', compact('proveedores', 'hoteles', 'itinerariosSeleccionados', 'destinos', 'paqueteSeleccionadoId'));
     }
 
     public function store(Request $request)
@@ -60,7 +81,7 @@ class TourController extends Controller
             $this->syncItinerarios($tour, $validated);
             $this->syncPasajeros($request, $tour, $validated['pasajeros'] ?? []);
             $this->syncHospedajes($tour, $validated['hospedajes'] ?? []);
-            $tour->proveedores()->sync($validated['proveedores'] ?? []);
+            $this->syncProveedores($request, $tour, $validated['proveedores'] ?? []);
             return $tour;
         });
 
@@ -84,13 +105,13 @@ class TourController extends Controller
 
     public function edit(Tour $tour)
     {
-        $tour->load('itineraries', 'proveedores', 'hospedajes.rooms', 'passengers');
+        $tour->load('itineraries', 'proveedores', 'proveedorFechas', 'hospedajes.rooms', 'passengers');
         $proveedores = Proveedor::with('tipo')->orderBy('nombre')->get();
-        $hoteles = Hotel::with('rooms')->orderBy('nombre')->get();
+        $hoteles = Hotel::with('rooms', 'destino')->orderBy('nombre')->get();
         $itinerariosSeleccionados = old('itinerarios') !== null
             ? $this->buildItinerariosSeleccionadosFromOld()
             : $tour->itineraries;
-        $destinos = Destino::with('categorias.subcategorias')->orderBy('nombre')->get();
+        $destinos = Destino::with('categorias')->orderBy('nombre')->get();
         return view('tours.edit', compact('tour', 'proveedores', 'hoteles', 'itinerariosSeleccionados', 'destinos'));
     }
 
@@ -114,7 +135,7 @@ class TourController extends Controller
             $this->syncItinerarios($tour, $validated);
             $this->syncPasajeros($request, $tour, $validated['pasajeros'] ?? []);
             $this->syncHospedajes($tour, $validated['hospedajes'] ?? []);
-            $tour->proveedores()->sync($validated['proveedores'] ?? []);
+            $this->syncProveedores($request, $tour, $validated['proveedores'] ?? []);
         });
 
         return redirect()->route('tours.show', $tour)->with('success', 'Tour actualizado.');
@@ -134,7 +155,7 @@ class TourController extends Controller
 
     public function duplicate(Tour $tour)
     {
-        $tour->load('itineraries', 'hospedajes.rooms', 'proveedores');
+        $tour->load('itineraries', 'hospedajes.rooms', 'proveedores', 'proveedorFechas');
 
         $nuevo = DB::transaction(function () use ($tour) {
             $data = $tour->only([
@@ -158,6 +179,7 @@ class TourController extends Controller
                 $pivotData[$itinerario->id] = [
                     'fecha' => $itinerario->pivot->fecha,
                     'cantidad_pax' => $itinerario->pivot->cantidad_pax,
+                    'cantidad_pax_ninos' => $itinerario->pivot->cantidad_pax_ninos,
                     'orden' => $itinerario->pivot->orden,
                 ];
             }
@@ -173,6 +195,17 @@ class TourController extends Controller
             }
 
             $nuevo->proveedores()->sync($tour->proveedores->pluck('id')->all());
+
+            $filasFechas = $tour->proveedorFechas->map(fn ($pf) => [
+                'tour_id' => $nuevo->id,
+                'proveedor_id' => $pf->proveedor_id,
+                'fecha' => $pf->fecha,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all();
+            if ($filasFechas) {
+                ProveedorTourFecha::insertOrIgnore($filasFechas);
+            }
 
             return $nuevo;
         });
@@ -205,7 +238,7 @@ class TourController extends Controller
         $nombreArchivo = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $nombreArchivo) . '.pdf';
 
         $localeMap = ['espanol' => 'es', 'ingles' => 'en', 'portugues' => 'pt'];
-        $locale = $localeMap[$tour->idioma] ?? 'es';
+        $locale = $localeMap[$tour->idioma] ?? 'en';
         $localeAnterior = app()->getLocale();
         app()->setLocale($locale);
 
@@ -215,6 +248,78 @@ class TourController extends Controller
         app()->setLocale($localeAnterior);
 
         return $response;
+    }
+
+    public function itinerarioPdf(Tour $tour)
+    {
+        $tour->load([
+            'itineraries.destino',
+            'itineraries.categoria',
+            'hospedajes.hotel',
+            'hospedajes.rooms',
+            'passengers',
+            'agencia',
+        ]);
+
+        $agencia = $tour->agencia;
+        $terminos = $agencia?->terminosCondiciones($tour->idioma);
+
+        $defaults = ['#295353', '#5f7e7e', '#94a9a9'];
+        $colores = $agencia?->colores;
+        $brand = [
+            'color1' => $colores[0] ?? $defaults[0],
+            'color2' => $colores[1] ?? $colores[0] ?? $defaults[1],
+            'color3' => $colores[2] ?? $colores[1] ?? $colores[0] ?? $defaults[2],
+        ];
+
+        ['dias' => $dias, 'sinFecha' => $sinFecha] = $this->buildItinerarioDias($tour);
+
+        $nombreArchivo = 'Itinerario_' . $tour->codigo . '_' . ($tour->nombre_pax ?: 'sin_nombre');
+        $nombreArchivo = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $nombreArchivo) . '.pdf';
+
+        $localeMap = ['espanol' => 'es', 'ingles' => 'en', 'portugues' => 'pt'];
+        $locale = $localeMap[$tour->idioma] ?? 'es';
+        $localeAnterior = app()->getLocale();
+        app()->setLocale($locale);
+
+        $pdf = Pdf::loadView('tours.itinerario-pdf', compact('tour', 'agencia', 'brand', 'dias', 'sinFecha', 'terminos'))->setPaper('a4');
+        $response = $pdf->stream($nombreArchivo);
+
+        app()->setLocale($localeAnterior);
+
+        return $response;
+    }
+
+    private function buildItinerarioDias(Tour $tour): array
+    {
+        $porFecha = $tour->itineraries
+            ->filter(fn ($it) => $it->pivot->fecha)
+            ->groupBy(fn ($it) => \Carbon\Carbon::parse($it->pivot->fecha)->format('Y-m-d'));
+
+        $sinFecha = $tour->itineraries
+            ->filter(fn ($it) => !$it->pivot->fecha)
+            ->sortBy('pivot.orden')
+            ->values();
+
+        $dias = [];
+        $numero = 1;
+
+        foreach ($porFecha->keys()->sort()->values() as $fecha) {
+            $actividades = $porFecha->get($fecha)->sortBy('pivot.orden')->values();
+
+            $hospedaje = $tour->hospedajes->first(function ($h) use ($fecha) {
+                return $h->fecha_ingreso && \Carbon\Carbon::parse($h->fecha_ingreso)->format('Y-m-d') === $fecha;
+            });
+
+            $dias[] = [
+                'numero' => $numero++,
+                'fecha' => \Carbon\Carbon::parse($fecha),
+                'actividades' => $actividades,
+                'hospedaje' => $hospedaje,
+            ];
+        }
+
+        return ['dias' => $dias, 'sinFecha' => $sinFecha];
     }
 
     public function habitaciones(Tour $tour)
@@ -357,6 +462,8 @@ class TourController extends Controller
             'itinerarios_fecha.*' => 'nullable|date',
             'itinerarios_cantidad' => 'nullable|array',
             'itinerarios_cantidad.*' => 'nullable|integer|min:1',
+            'itinerarios_cantidad_ninos' => 'nullable|array',
+            'itinerarios_cantidad_ninos.*' => 'nullable|integer|min:0',
 
             'pasajeros' => 'nullable|array',
             'pasajeros.*.id' => 'nullable|integer|exists:passengers,id',
@@ -376,6 +483,9 @@ class TourController extends Controller
 
             'proveedores' => 'nullable|array',
             'proveedores.*' => 'exists:proveedores,id',
+            'proveedores_fechas' => 'nullable|array',
+            'proveedores_fechas.*' => 'nullable|array',
+            'proveedores_fechas.*.*' => 'nullable|date',
         ]);
 
         $validator->after(function ($validator) use ($request) {
@@ -386,22 +496,9 @@ class TourController extends Controller
                 $validator->errors()->add('itinerarios', 'La fecha y la cantidad de pax deben indicarse para cada itinerario agregado.');
             }
 
-            $fechasValidas = array_filter($fechasFilas);
-            $fechaInicio = $fechasValidas ? min($fechasValidas) : null;
-            $fechaFin = $fechasValidas ? max($fechasValidas) : null;
             $hospedajes = $request->input('hospedajes', []);
 
             foreach ($hospedajes as $i => $data) {
-                if (empty($data['fecha_ingreso']) || empty($data['fecha_salida']) || !$fechaInicio || !$fechaFin) {
-                    continue;
-                }
-                if ($data['fecha_ingreso'] < $fechaInicio || $data['fecha_salida'] > $fechaFin) {
-                    $validator->errors()->add(
-                        "hospedajes.$i.fecha_ingreso",
-                        'Las fechas del hospedaje deben estar dentro del rango de fechas del tour.'
-                    );
-                }
-
                 if (!empty($data['rooms']) && !empty($data['hotel_id'])) {
                     $roomFueraDeHotel = Room::whereIn('id', $data['rooms'])
                         ->where('hotel_id', '!=', $data['hotel_id'])
@@ -451,12 +548,14 @@ class TourController extends Controller
         $ids = $validated['itinerarios'] ?? [];
         $fechas = $validated['itinerarios_fecha'] ?? [];
         $cantidades = $validated['itinerarios_cantidad'] ?? [];
+        $cantidadesNinos = $validated['itinerarios_cantidad_ninos'] ?? [];
 
         $pivotData = [];
         foreach ($ids as $i => $itinerarioId) {
             $pivotData[$itinerarioId] = [
                 'fecha' => $fechas[$i],
                 'cantidad_pax' => $cantidades[$i],
+                'cantidad_pax_ninos' => $cantidadesNinos[$i] ?? 0,
                 'orden' => $i,
             ];
         }
@@ -510,9 +609,10 @@ class TourController extends Controller
         $ids = old('itinerarios', []);
         $fechas = old('itinerarios_fecha', []);
         $cantidades = old('itinerarios_cantidad', []);
+        $cantidadesNinos = old('itinerarios_cantidad_ninos', []);
         $itinerariosById = Itinerary::whereIn('id', $ids)->get()->keyBy('id');
 
-        return collect($ids)->map(function ($id, $i) use ($itinerariosById, $fechas, $cantidades) {
+        return collect($ids)->map(function ($id, $i) use ($itinerariosById, $fechas, $cantidades, $cantidadesNinos) {
             $itinerario = $itinerariosById->get($id);
             if (!$itinerario) {
                 return null;
@@ -520,6 +620,7 @@ class TourController extends Controller
             $itinerario->pivot = (object) [
                 'fecha' => $fechas[$i] ?? null,
                 'cantidad_pax' => $cantidades[$i] ?? null,
+                'cantidad_pax_ninos' => $cantidadesNinos[$i] ?? null,
             ];
             return $itinerario;
         })->filter()->values();
@@ -546,6 +647,31 @@ class TourController extends Controller
             }
 
             $hospedaje->rooms()->sync($hospedajeData['rooms'] ?? []);
+        }
+    }
+
+    private function syncProveedores(Request $request, Tour $tour, array $proveedorIds): void
+    {
+        $tour->proveedores()->sync($proveedorIds);
+
+        $tour->proveedorFechas()->delete();
+
+        $fechasPorProveedor = $request->input('proveedores_fechas', []);
+        $filas = [];
+        foreach ($proveedorIds as $id) {
+            foreach (array_filter($fechasPorProveedor[$id] ?? []) as $fecha) {
+                $filas[] = [
+                    'tour_id' => $tour->id,
+                    'proveedor_id' => $id,
+                    'fecha' => $fecha,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+
+        if ($filas) {
+            ProveedorTourFecha::insertOrIgnore($filas);
         }
     }
 

@@ -16,7 +16,8 @@ use App\Http\Controllers\AgenciaController;
 use App\Http\Controllers\AgenciaProfileController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\CategoriaController;
-use App\Http\Controllers\SubcategoriaController;
+use App\Http\Controllers\ReservaController;
+use App\Http\Controllers\ContabilidadController;
 
 // Landing and auth routes
 Route::get('/', function () {
@@ -52,6 +53,19 @@ Route::middleware(['auth'])->group(function () {
     // Passengers (solo lectura: se crean/editan desde el formulario del Tour)
     Route::get('passengers', [PassengerController::class, 'index'])->name('passengers.index');
 
+    // Reservas: estado de hospedajes/proveedores por cotización
+    Route::middleware(['role:Reservas,Administrador,Super Administrador'])->group(function () {
+        Route::get('reservas', [ReservaController::class, 'index'])->name('reservas.index');
+        Route::get('reservas/{tour}', [ReservaController::class, 'show'])->name('reservas.show');
+        Route::put('reservas/hospedajes/{hospedaje}', [ReservaController::class, 'updateHospedaje'])->name('reservas.hospedaje.update');
+        Route::put('reservas/{tour}/proveedores/{proveedor}', [ReservaController::class, 'updateProveedor'])->name('reservas.proveedor.update');
+    });
+
+    // Contabilidad: extracto de ingresos general y por cotización
+    Route::middleware(['role:Contabilidad,Administrador,Super Administrador'])->group(function () {
+        Route::get('contabilidad', [ContabilidadController::class, 'index'])->name('contabilidad.index');
+    });
+
     // Proveedores
     Route::resource('proveedores', ProveedorController::class)
         ->parameters(['proveedores' => 'proveedor']);
@@ -61,8 +75,10 @@ Route::middleware(['auth'])->group(function () {
         ->parameters(['tipos-proveedor' => 'tipo']);
 
     // Tours
+    Route::get('tours/nuevo', [TourController::class, 'createChoice'])->name('tours.create-choice');
     Route::resource('tours', TourController::class);
     Route::get('tours/{tour}/pdf', [TourController::class, 'pdf'])->name('tours.pdf');
+    Route::get('tours/{tour}/itinerario', [TourController::class, 'itinerarioPdf'])->name('tours.itinerario-pdf');
     Route::post('tours/{tour}/duplicate', [TourController::class, 'duplicate'])->name('tours.duplicate');
     Route::get('tours/{tour}/habitaciones', [TourController::class, 'habitaciones'])->name('tours.habitaciones');
     Route::post('tours/{tour}/habitaciones', [TourController::class, 'guardarHabitaciones'])->name('tours.habitaciones.store');
@@ -70,7 +86,6 @@ Route::middleware(['auth'])->group(function () {
     // Destinos / Categorías / Subcategorías (jerarquía para clasificar Itinerarios)
     Route::resource('destinos', DestinoController::class);
     Route::resource('categorias', CategoriaController::class);
-    Route::resource('subcategorias', SubcategoriaController::class);
 
     // Itineraries (catálogo independiente, seleccionable desde Tours)
     Route::get('itineraries/search', [ItineraryController::class, 'search'])->name('itineraries.search');

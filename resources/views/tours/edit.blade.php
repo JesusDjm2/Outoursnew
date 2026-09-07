@@ -1,9 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Editar Tour')
 @section('content')
-@push('styles')
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.3.1/css/tom-select.min.css">
-@endpush
 @php
     $itinerariosSeleccionados = $itinerariosSeleccionados ?? collect();
     $destinos = $destinos ?? collect();
@@ -14,15 +11,20 @@
     $roomsByHotel = $hoteles->mapWithKeys(fn($hotel) => [
         $hotel->id => $hotel->rooms->map(fn($room) => [
             'id' => (string) $room->id,
-            'label' => $room->nombre . ' · #' . $room->numero_habitacion,
+            'nombre' => $room->nombre,
+            'numero_habitacion' => $room->numero_habitacion,
+            'precio_regular' => $room->precio_regular,
+            'precio_promo' => $room->precio_promo,
         ])->values(),
     ]);
     $roomPrices = $hoteles->flatMap->rooms->mapWithKeys(fn($room) => [
         (string) $room->id => ['precio_regular' => $room->precio_regular, 'precio_promo' => $room->precio_promo],
     ]);
+    $hotelCatalogo = $hoteles->map(fn($hotel) => ['id' => $hotel->id, 'nombre' => $hotel->nombre, 'destino_id' => $hotel->destino_id])->values();
 @endphp
 <script>window.roomsByHotel = @json($roomsByHotel);</script>
 <script>window.roomPrices = @json($roomPrices);</script>
+<script>window.hotelCatalogo = @json($hotelCatalogo);</script>
 <h1 class="text-2xl font-bold text-gray-800 mb-6 dark:text-slate-100">Editar Tour</h1>
 
 <form method="POST" action="{{ route('tours.update', $tour) }}" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -51,7 +53,7 @@
                     <i class="fas fa-plus"></i> Crear itinerario
                 </a>
             </div>
-            @include('tours._itinerary_picker')
+            @include('tours._itinerary_picker', ['mostrarSelectorPaquetes' => false])
         </div>
 
         <div class="bg-white rounded-xl shadow p-6 dark:bg-slate-900 dark:shadow-slate-950/50">
@@ -64,6 +66,12 @@
             @if($hoteles->isEmpty())
                 <p class="text-sm text-gray-500 dark:text-slate-400">Aún no hay hoteles registrados. <a href="{{ route('hotels.create') }}" class="text-indigo-600 underline dark:text-indigo-400">Crear uno</a>.</p>
             @else
+                <div id="hotel-picker-panel" class="hidden fixed z-50 w-72 max-h-80 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl dark:bg-slate-800 dark:border-slate-700">
+                    <div class="p-2 border-b border-gray-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800">
+                        <input type="text" id="hotel-picker-buscar" class="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Buscar hotel...">
+                    </div>
+                    <div id="hotel-picker-arbol" class="text-sm py-1"></div>
+                </div>
                 <div id="hospedajes-container" data-next-index="{{ $oldHospedajes ? count($oldHospedajes) : $tourHospedajes->count() }}">
                     @if($oldHospedajes)
                         @foreach($oldHospedajes as $i => $hospedajeOld)
@@ -84,14 +92,36 @@
             @if($proveedores->isEmpty())
                 <p class="text-sm text-gray-500 dark:text-slate-400">Aún no hay proveedores registrados. <a href="{{ route('proveedores.create') }}" class="text-amber-600 underline dark:text-amber-400">Crear uno</a>.</p>
             @else
-                @php $selectedProveedores = old('proveedores', $tour->proveedores->pluck('id')->all()); @endphp
+                @php
+                    $selectedProveedores = old('proveedores', $tour->proveedores->pluck('id')->all());
+                    $fechasPorProveedorTour = $tour->proveedorFechas->groupBy('proveedor_id')
+                        ->map(fn($grupo) => $grupo->pluck('fecha')->map(fn($f) => \Illuminate\Support\Carbon::parse($f)->format('Y-m-d'))->all());
+                @endphp
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     @foreach($proveedores as $proveedor)
-                    <label class="flex items-center gap-3 border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-amber-50 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:bg-slate-800">
+                    @php
+                        $proveedorChecked = in_array($proveedor->id, $selectedProveedores);
+                        $fechasProveedor = old('proveedores_fechas.' . $proveedor->id, $fechasPorProveedorTour[$proveedor->id] ?? []);
+                    @endphp
+                    <label class="flex items-start gap-3 border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-amber-50 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:bg-slate-800">
                         <input type="checkbox" name="proveedores[]" value="{{ $proveedor->id }}"
-                               {{ in_array($proveedor->id, $selectedProveedores) ? 'checked' : '' }}
-                               class="rounded text-amber-600 focus:ring-amber-500">
-                        <span class="text-sm text-gray-700 dark:text-slate-300">{{ $proveedor->nombre }} <span class="text-gray-400 dark:text-slate-500">({{ $proveedor->tipo?->nombre ?? 'Sin tipo' }})</span></span>
+                               {{ $proveedorChecked ? 'checked' : '' }}
+                               class="proveedor-checkbox mt-0.5 rounded text-amber-600 focus:ring-amber-500">
+                        <span class="flex-1 min-w-0">
+                            <span class="block text-sm text-gray-700 dark:text-slate-300"><span class="proveedor-nombre">{{ $proveedor->nombre }}</span> <span class="text-gray-400 dark:text-slate-500">({{ $proveedor->tipo?->nombre ?? 'Sin tipo' }})</span></span>
+                            <div class="proveedor-fechas-wrap mt-1 flex flex-wrap items-center gap-1 {{ $proveedorChecked ? '' : 'hidden' }}" data-proveedor-id="{{ $proveedor->id }}">
+                                <div class="proveedor-fechas-chips flex flex-wrap gap-1">
+                                    @foreach($fechasProveedor as $fecha)
+                                    <span class="proveedor-fecha-chip inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                        {{ $fecha }}
+                                        <button type="button" class="proveedor-fecha-remove hover:text-red-600" title="Quitar fecha">&times;</button>
+                                        <input type="hidden" name="proveedores_fechas[{{ $proveedor->id }}][]" value="{{ $fecha }}">
+                                    </span>
+                                    @endforeach
+                                </div>
+                                <input type="date" class="proveedor-fecha-add px-1.5 py-0.5 text-[11px] border border-gray-300 rounded dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" title="Agregar fecha">
+                            </div>
+                        </span>
                     </label>
                     @endforeach
                 </div>

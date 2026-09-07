@@ -1,27 +1,59 @@
 @extends('layouts.app')
-@section('title', 'Nuevo Itinerario')
+@section('title', 'Nueva Actividad')
 @section('content')
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/2.0.2/quill.snow.min.css">
 @endpush
 
-<h1 class="text-2xl font-bold text-gray-800 mb-6 dark:text-slate-100">Nuevo Itinerario</h1>
-<div class="bg-white rounded-xl shadow p-6 md:p-8 max-w-3xl dark:bg-slate-900 dark:shadow-slate-950/50">
+<h1 class="text-2xl font-bold text-gray-800 mb-6 dark:text-slate-100">Nueva Actividad</h1>
+<div class="bg-white rounded-xl shadow p-6 md:p-8 dark:bg-slate-900 dark:shadow-slate-950/50">
     <form method="POST" action="{{ route('itineraries.store') }}" id="itinerary-form">
         @csrf
-        @include('itineraries._category_picker', ['selectedDestinoId' => null, 'selectedCategoriaId' => null])
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        @include('partials._category_picker', ['selectedDestinoId' => null, 'selectedCategoriaId' => null])
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Código <span class="text-gray-400">(opcional)</span></label>
+                <input type="text" name="codigo" value="{{ old('codigo') }}" list="codigos-datalist" maxlength="20" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 uppercase" placeholder="TE, TN...">
+                <datalist id="codigos-datalist">
+                    <option value="TE">
+                    <option value="TN">
+                    <option value="TEP">
+                    <option value="TETT">
+                    <option value="TENT">
+                    <option value="TED">
+                </datalist>
+            </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Nombre</label>
                 <input type="text" name="nombre" value="{{ old('nombre') }}" required class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Costo Regular (por persona)</label>
-                <input type="number" step="0.01" min="0" name="costo" value="{{ old('costo') }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="border border-gray-200 rounded-lg p-3 dark:border-slate-700">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-slate-400">Adulto</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Precio Confidencial</label>
+                        <input type="number" step="0.01" min="0" name="costo" value="{{ old('costo') }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Precio de Venta</label>
+                        <input type="number" step="0.01" min="0" name="costo_promo" value="{{ old('costo_promo') }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
+                    </div>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Costo Promo (por persona)</label>
-                <input type="number" step="0.01" min="0" name="costo_promo" value="{{ old('costo_promo') }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
+            <div class="border border-gray-200 rounded-lg p-3 dark:border-slate-700">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-slate-400">Niño</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Precio Confidencial</label>
+                        <input type="number" step="0.01" min="0" name="costo_nino" value="{{ old('costo_nino') }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Precio de Venta</label>
+                        <input type="number" step="0.01" min="0" name="costo_promo_nino" value="{{ old('costo_promo_nino') }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500">
+                    </div>
+                </div>
             </div>
         </div>
         <div class="mb-4">

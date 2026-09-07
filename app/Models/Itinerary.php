@@ -12,8 +12,11 @@ class Itinerary extends Model
         'destino_id',
         'categoria_id',
         'nombre',
+        'codigo',
         'costo',
         'costo_promo',
+        'costo_nino',
+        'costo_promo_nino',
         'descripcion',
         'incluye',
         'no_incluye',
@@ -32,10 +35,5 @@ class Itinerary extends Model
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class);
-    }
-
-    public function subcategoria(): BelongsTo
-    {
-        return $this->belongsTo(Subcategoria::class);
     }
 }

@@ -16,6 +16,7 @@ class Hospedaje extends Model
         'hotel_id',
         'fecha_ingreso',
         'fecha_salida',
+        'estado_reserva',
     ];
 
     public function tour(): BelongsTo

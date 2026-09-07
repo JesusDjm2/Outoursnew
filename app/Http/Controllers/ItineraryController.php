@@ -15,7 +15,14 @@ class ItineraryController extends Controller
 
         $itineraries = Itinerary::query()
             ->with('destino', 'categoria')
-            ->when($q, fn($query) => $query->where('nombre', 'like', "%{$q}%"))
+            ->when($q, function ($query) use ($q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('nombre', 'like', "%{$q}%")
+                        ->orWhere('codigo', 'like', "%{$q}%")
+                        ->orWhereHas('destino', fn ($d) => $d->where('nombre', 'like', "%{$q}%"))
+                        ->orWhereHas('categoria', fn ($c) => $c->where('nombre', 'like', "%{$q}%"));
+                });
+            })
             ->orderBy('nombre')
             ->paginate(15)
             ->withQueryString();
@@ -72,7 +79,7 @@ class ItineraryController extends Controller
             ->when($destinoId, fn($query) => $query->where('destino_id', $destinoId))
             ->orderBy('nombre')
             ->limit(50)
-            ->get(['id', 'nombre', 'costo', 'costo_promo']);
+            ->get(['id', 'nombre', 'codigo', 'costo', 'costo_promo', 'costo_nino', 'costo_promo_nino']);
 
         return response()->json($itineraries);
     }
@@ -86,8 +93,11 @@ class ItineraryController extends Controller
                 Rule::exists('categorias', 'id')->where('destino_id', $request->input('destino_id')),
             ],
             'nombre' => 'required|string|max:255',
+            'codigo' => 'nullable|string|max:20',
             'costo' => 'nullable|numeric|min:0',
             'costo_promo' => 'nullable|numeric|min:0',
+            'costo_nino' => 'nullable|numeric|min:0',
+            'costo_promo_nino' => 'nullable|numeric|min:0',
             'descripcion' => 'nullable|string',
             'incluye' => 'nullable|string',
             'no_incluye' => 'nullable|string',

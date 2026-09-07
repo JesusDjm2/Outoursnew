@@ -4,14 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Hotel;
 use App\Models\Room;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class RoomController extends Controller
 {
     public function index(Hotel $hotel)
     {
-        $rooms = $hotel->rooms;
-        return view('rooms.index', compact('hotel', 'rooms'));
+        return redirect()->route('hotels.index');
     }
 
     public function create(Hotel $hotel)
@@ -32,7 +32,7 @@ class RoomController extends Controller
         $validated['hotel_id'] = $hotel->id;
         Room::create($validated);
 
-        return redirect()->route('rooms.index', $hotel)->with('success', 'Habitación creada.');
+        return redirect()->route('hotels.index')->with('success', 'Habitación creada.');
     }
 
     public function edit(Hotel $hotel, Room $room)
@@ -52,12 +52,18 @@ class RoomController extends Controller
 
         $room->update($validated);
 
-        return redirect()->route('rooms.index', $hotel)->with('success', 'Habitación actualizada.');
+        return redirect()->route('hotels.index')->with('success', 'Habitación actualizada.');
     }
 
     public function destroy(Hotel $hotel, Room $room)
     {
-        $room->delete();
-        return redirect()->route('rooms.index', $hotel)->with('success', 'Habitación eliminada.');
+        try {
+            $room->delete();
+        } catch (QueryException $e) {
+            return redirect()->route('hotels.index')
+                ->with('error', 'No se puede eliminar: esta habitación está asignada en algún hospedaje.');
+        }
+
+        return redirect()->route('hotels.index')->with('success', 'Habitación eliminada.');
     }
 }

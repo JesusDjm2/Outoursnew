@@ -48,13 +48,18 @@ class Tour extends Model
     public function itineraries(): BelongsToMany
     {
         return $this->belongsToMany(Itinerary::class)
-            ->withPivot(['fecha', 'cantidad_pax', 'orden'])
+            ->withPivot(['fecha', 'cantidad_pax', 'cantidad_pax_ninos', 'orden'])
             ->orderBy('itinerary_tour.orden');
     }
 
     public function proveedores(): BelongsToMany
     {
-        return $this->belongsToMany(Proveedor::class);
+        return $this->belongsToMany(Proveedor::class)->withPivot(['estado_reserva']);
+    }
+
+    public function proveedorFechas(): HasMany
+    {
+        return $this->hasMany(ProveedorTourFecha::class);
     }
 
     public function hospedajes(): HasMany
@@ -73,9 +78,12 @@ class Tour extends Model
         $pvPromo = 0.0;
 
         foreach ($this->itineraries as $itinerario) {
-            $cantidad = (float) ($itinerario->pivot->cantidad_pax ?? 0);
-            $pvRegular += (float) ($itinerario->costo ?? 0) * $cantidad;
-            $pvPromo += (float) ($itinerario->costo_promo ?? $itinerario->costo ?? 0) * $cantidad;
+            $cantidadAdultos = (float) ($itinerario->pivot->cantidad_pax ?? 0);
+            $cantidadNinos = (float) ($itinerario->pivot->cantidad_pax_ninos ?? 0);
+            $pvRegular += (float) ($itinerario->costo ?? 0) * $cantidadAdultos
+                + (float) ($itinerario->costo_nino ?? 0) * $cantidadNinos;
+            $pvPromo += (float) ($itinerario->costo_promo ?? $itinerario->costo ?? 0) * $cantidadAdultos
+                + (float) ($itinerario->costo_promo_nino ?? $itinerario->costo_nino ?? 0) * $cantidadNinos;
         }
 
         foreach ($this->hospedajes as $hospedaje) {

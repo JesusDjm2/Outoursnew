@@ -1,17 +1,52 @@
 @php
     $destinos = $destinos ?? collect();
-    $paquetesItinerario = \App\Models\ItineraryPackage::orderBy('nombre')->get(['id', 'nombre', 'dias']);
-    $catalogoItinerarios = \App\Models\Itinerary::orderBy('nombre')->get(['id', 'nombre', 'costo', 'costo_promo']);
+    $paqueteSeleccionadoId = $paqueteSeleccionadoId ?? null;
+    $mostrarSelectorPaquetes = $mostrarSelectorPaquetes ?? false;
+    $paquetesItinerario = $mostrarSelectorPaquetes
+        ? \App\Models\ItineraryPackage::orderBy('nombre')->get(['id', 'nombre', 'dias'])
+        : collect();
+    $catalogoItinerarios = \App\Models\Itinerary::orderBy('nombre')
+        ->get(['id', 'nombre', 'codigo', 'costo', 'costo_promo', 'costo_nino', 'costo_promo_nino', 'destino_id', 'categoria_id']);
     $initialItinerariosData = $itinerariosSeleccionados->values()->map(fn($it, $i) => [
         'id' => $it->id,
         'nombre' => $it->nombre,
         'costo' => $it->costo,
         'costo_promo' => $it->costo_promo,
+        'costo_nino' => $it->costo_nino,
+        'costo_promo_nino' => $it->costo_promo_nino,
+        'destino_id' => $it->destino_id,
+        'categoria_id' => $it->categoria_id,
         'fecha' => $it->pivot->fecha ?? null,
         'cantidad' => $it->pivot->cantidad_pax ?? null,
+        'cantidad_ninos' => $it->pivot->cantidad_pax_ninos ?? null,
         'fecha_error' => $errors->first("itinerarios_fecha.$i"),
         'cantidad_error' => $errors->first("itinerarios_cantidad.$i"),
     ])->values();
+
+    $paqueteYaAplicado = $mostrarSelectorPaquetes && $paqueteSeleccionadoId;
+    $paqueteSeleccionadoModel = null;
+    if ($paqueteYaAplicado) {
+        $paqueteSeleccionadoModel = \App\Models\ItineraryPackage::find($paqueteSeleccionadoId);
+        if ($paqueteSeleccionadoModel && empty(old('itinerarios'))) {
+            $paqueteSeleccionadoModel->load('itineraries');
+            $itemsDelPaquete = $paqueteSeleccionadoModel->itineraries->values()->map(fn($it) => [
+                'id' => $it->id,
+                'nombre' => $it->nombre,
+                'costo' => $it->costo,
+                'costo_promo' => $it->costo_promo,
+                'costo_nino' => $it->costo_nino,
+                'costo_promo_nino' => $it->costo_promo_nino,
+                'destino_id' => $it->destino_id,
+                'categoria_id' => $it->categoria_id,
+                'fecha' => null,
+                'cantidad' => $it->pivot->cantidad_pax_defecto,
+                'cantidad_ninos' => null,
+                'fecha_error' => null,
+                'cantidad_error' => null,
+            ]);
+            $initialItinerariosData = $initialItinerariosData->concat($itemsDelPaquete)->values();
+        }
+    }
     $categoryTreeJson = $destinos->map(fn($destino) => [
         'id' => $destino->id,
         'nombre' => $destino->nombre,
@@ -28,76 +63,71 @@
         window.itinerarioCatalogo = @json($catalogoItinerarios);
     </script>
 
-    <datalist id="tours-datalist">
-        @foreach($catalogoItinerarios->unique('nombre') as $it)
-            <option value="{{ $it->nombre }}"></option>
-        @endforeach
-    </datalist>
+    @if($paqueteYaAplicado && $paqueteSeleccionadoModel)
+    <div id="paquete-cargado-aviso" class="rounded-lg border border-purple-200 bg-purple-50 p-3 mb-4 dark:border-purple-900/50 dark:bg-purple-950/20 flex items-start justify-between gap-3">
+        <p class="text-xs font-medium text-purple-700 dark:text-purple-300"><i class="fas fa-circle-check"></i> Se cargaron las actividades del paquete "{{ $paqueteSeleccionadoModel->nombre }}". Solo falta poner la fecha de cada día en la lista de abajo.</p>
+        <button type="button" onclick="document.getElementById('paquete-cargado-aviso').remove()" class="text-purple-500 hover:text-purple-700 dark:text-purple-300 dark:hover:text-purple-100" title="Cerrar">
+            <i class="fas fa-xmark"></i>
+        </button>
+    </div>
+    @endif
 
-    @if($paquetesItinerario->isNotEmpty())
-    <div class="rounded-lg border border-purple-200 bg-purple-50 p-3 mb-4 dark:border-purple-900/50 dark:bg-purple-950/20">
-        <p class="text-xs font-medium text-purple-700 dark:text-purple-300 mb-2">¿Deseas usar un paquete de itinerarios ya creado?</p>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-            <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Paquete</label>
-                <select id="paquete-select" class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                    <option value="">No usar paquete...</option>
-                    @foreach($paquetesItinerario as $paquete)
-                        <option value="{{ $paquete->id }}">{{ $paquete->nombre }} ({{ $paquete->dias }} {{ $paquete->dias == 1 ? 'día' : 'días' }})</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Fecha de inicio (Día 1)</label>
-                <input type="date" id="paquete-fecha-inicio" class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-            </div>
-            <button type="button" id="aplicar-paquete-btn" class="bg-purple-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-purple-700 transition disabled:opacity-50" disabled>
-                <i class="fas fa-check"></i> Aplicar paquete
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        @if($mostrarSelectorPaquetes && $paquetesItinerario->isNotEmpty() && !$paqueteYaAplicado)
+        <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
+            <i class="fas fa-layer-group text-gray-400 dark:text-slate-500"></i>
+            <span>¿Partir de un paquete predeterminado?</span>
+            <select id="paquete-select" class="px-2 py-1 text-xs border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                <option value="">Elegir paquete...</option>
+                @foreach($paquetesItinerario as $paquete)
+                    <option value="{{ $paquete->id }}">{{ $paquete->nombre }} ({{ $paquete->dias }} {{ $paquete->dias == 1 ? 'día' : 'días' }})</option>
+                @endforeach
+            </select>
+            <button type="button" id="aplicar-paquete-btn" class="text-purple-600 hover:text-purple-800 font-medium disabled:opacity-40 disabled:cursor-not-allowed dark:text-purple-400 dark:hover:text-purple-300" disabled>
+                <i class="fas fa-check"></i> Aplicar
             </button>
         </div>
-        <p class="text-[11px] text-purple-500 dark:text-purple-400 mt-2">Se agregan las filas del paquete a las que ya tengas; usa "Limpiar" abajo si quieres empezar de cero.</p>
-    </div>
-    @endif
-
-    @if($destinos->isNotEmpty())
-    <div class="rounded-lg border border-gray-200 dark:border-slate-700 p-3 mb-4">
-        <p class="text-xs font-medium text-gray-500 dark:text-slate-400 mb-2">Buscar por clasificación (recomendado si hay muchos tours)</p>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Destino</label>
-                <select id="picker-destino" class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                    <option value="">Selecciona...</option>
-                    @foreach($destinos as $destino)
-                        <option value="{{ $destino->id }}">{{ $destino->nombre }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Categoría <span class="text-gray-400">(opcional)</span></label>
-                <select id="picker-categoria" class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" disabled>
-                    <option value="">Elige un destino...</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Tour / Actividad</label>
-                <select id="picker-itinerario" class="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" disabled>
-                    <option value="">Elige un destino...</option>
-                </select>
-            </div>
-        </div>
-        <button type="button" id="add-fila-desde-picker-btn" class="mt-3 bg-purple-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-purple-700 transition disabled:opacity-50" disabled>
-            <i class="fas fa-plus"></i> Agregar al Tour
-        </button>
-    </div>
-    @endif
-
-    <div class="flex items-center justify-end gap-2 mb-3">
-        <button type="button" id="add-fila-btn" class="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-700 transition">
-            <i class="fas fa-plus"></i> Fila
-        </button>
+        @else
+        <span></span>
+        @endif
         <button type="button" id="limpiar-filas-btn" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-300 transition dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">
             Limpiar
         </button>
+    </div>
+
+    <div id="proveedor-quick-add" class="hidden fixed inset-0 z-[60] items-center justify-center bg-black/40 p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-5 dark:bg-slate-800 dark:border dark:border-slate-700">
+            <div class="flex items-start justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                    <i class="fas fa-truck-fast text-amber-600 mr-1"></i> Agregar proveedor
+                </h3>
+                <button type="button" id="proveedor-quick-add-close" class="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-slate-400 mb-3">Para <strong id="proveedor-quick-add-dia" class="text-gray-700 dark:text-slate-200"></strong></p>
+            <select id="proveedor-quick-add-select" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 mb-4">
+                <option value="">Elegir proveedor...</option>
+                @foreach(($proveedores ?? []) as $proveedorOption)
+                    <option value="{{ $proveedorOption->id }}">{{ $proveedorOption->nombre }} ({{ $proveedorOption->tipo?->nombre ?? 'Sin tipo' }})</option>
+                @endforeach
+            </select>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="proveedor-quick-add-cancel" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                    Cancelar
+                </button>
+                <button type="button" id="proveedor-quick-add-confirm" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700 transition">
+                    <i class="fas fa-check"></i> Agregar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="actividad-picker-panel" class="hidden fixed z-50 w-72 max-h-80 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl dark:bg-slate-800 dark:border-slate-700">
+        <div class="p-2 border-b border-gray-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800">
+            <input type="text" id="actividad-picker-buscar" class="w-full px-2 py-1 text-xs border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Buscar actividad...">
+        </div>
+        <div id="actividad-picker-arbol" class="text-sm py-1"></div>
     </div>
 
     <div class="overflow-x-auto">
@@ -105,12 +135,14 @@
             <thead>
                 <tr class="text-left text-xs uppercase text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
                     <th class="w-6"></th>
-                    <th class="py-2 pr-2 font-medium">Fecha</th>
-                    <th class="py-2 pr-2 font-medium">Tour / Actividad</th>
-                    <th class="py-2 pr-2 font-medium w-20">Cant.</th>
-                    <th class="py-2 pr-2 font-medium w-24">Distr.</th>
-                    <th class="py-2 pr-2 font-medium w-28">Total Línea</th>
-                    <th class="py-2 font-medium w-10">Acc.</th>
+                    <th class="py-2 pr-2 font-medium w-14">Día</th>
+                    <th class="py-2 pr-2 font-medium w-36">Fecha</th>
+                    <th class="py-2 pr-2 font-medium min-w-[280px]">Actividad</th>
+                    <th class="py-2 pr-2 font-medium w-16">Adultos</th>
+                    <th class="py-2 pr-2 font-medium w-16">Niños</th>
+                    <th class="py-2 pr-2 font-medium w-24">P. Confidencial</th>
+                    <th class="py-2 pr-2 font-medium w-28">Total (Venta)</th>
+                    <th class="py-2 font-medium w-24">Acc.</th>
                 </tr>
             </thead>
             <tbody id="itinerarios-seleccionados"></tbody>
@@ -119,6 +151,12 @@
     <p id="itinerarios-empty-msg" class="text-sm text-gray-400 dark:text-slate-500 mt-2">
         Aún no agregaste filas. Usa "+ Fila" para comenzar.
     </p>
+
+    <div class="mt-3">
+        <button type="button" id="add-fila-btn" class="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-700 transition">
+            <i class="fas fa-plus"></i> Fila
+        </button>
+    </div>
 </div>
 
 <script>
@@ -126,14 +164,138 @@ document.addEventListener('DOMContentLoaded', () => {
     const tbody = document.getElementById('itinerarios-seleccionados');
     const emptyMsg = document.getElementById('itinerarios-empty-msg');
     const paxAdultosInput = document.querySelector('input[name="pax_adultos"]');
+    const paxNinosInput = document.querySelector('input[name="pax_ninos"]');
+    const tree = window.tourPickerCategoryTree || [];
+    const catalogo = window.itinerarioCatalogo || [];
     window.itinerarioCostos = window.itinerarioCostos || {};
     window.itinerarioCostosPromo = window.itinerarioCostosPromo || {};
+    window.itinerarioCostosNino = window.itinerarioCostosNino || {};
+    window.itinerarioCostosPromoNino = window.itinerarioCostosPromoNino || {};
 
-    const catalogoPorNombre = {};
-    (window.itinerarioCatalogo || []).forEach((it) => {
-        catalogoPorNombre[it.nombre.trim().toLowerCase()] = it;
+    catalogo.forEach((it) => {
         window.itinerarioCostos[it.id] = it.costo;
         window.itinerarioCostosPromo[it.id] = it.costo_promo ?? it.costo;
+        window.itinerarioCostosNino[it.id] = it.costo_nino;
+        window.itinerarioCostosPromoNino[it.id] = it.costo_promo_nino ?? it.costo_nino;
+    });
+
+    function actualizarVistaPorDia() {
+        const rows = Array.from(tbody.querySelectorAll('.itinerario-row'));
+
+        const fechas = Array.from(new Set(rows.map((tr) => tr.querySelector('.itinerario-fecha').value).filter(Boolean))).sort();
+
+        const rowsPorFecha = {};
+        const rowsSinFecha = [];
+        rows.forEach((tr) => {
+            const v = tr.querySelector('.itinerario-fecha').value;
+            if (v) (rowsPorFecha[v] = rowsPorFecha[v] || []).push(tr);
+            else rowsSinFecha.push(tr);
+        });
+
+        fechas.forEach((fecha) => (rowsPorFecha[fecha] || []).forEach((tr) => tbody.appendChild(tr)));
+        rowsSinFecha.forEach((tr) => tbody.appendChild(tr));
+
+        rows.forEach((tr) => {
+            const val = tr.querySelector('.itinerario-fecha').value;
+            const diaLabel = tr.querySelector('.itinerario-dia-label');
+            if (!diaLabel) return;
+            diaLabel.textContent = val ? `Día ${fechas.indexOf(val) + 1}` : '—';
+        });
+    }
+
+    window.actualizarVistaPorDia = actualizarVistaPorDia;
+
+    function agregarHotelParaDia(fecha) {
+        const addHospedajeBtn = document.getElementById('add-hospedaje-btn');
+        if (!addHospedajeBtn) {
+            alert('Primero registra un hotel en el catálogo para poder agregarlo aquí.');
+            return;
+        }
+        addHospedajeBtn.click();
+        requestAnimationFrame(() => {
+            const blocks = document.querySelectorAll('#hospedajes-container .hospedaje-block');
+            const block = blocks[blocks.length - 1];
+            if (!block) return;
+
+            if (fecha) {
+                const fechaIngreso = block.querySelector('[name*="[fecha_ingreso]"]');
+                const fechaSalida = block.querySelector('[name*="[fecha_salida]"]');
+                if (fechaIngreso) {
+                    fechaIngreso.value = fecha;
+                    fechaIngreso.dispatchEvent(new Event('input'));
+                }
+                if (fechaSalida) {
+                    const salida = new Date(fecha + 'T00:00:00');
+                    salida.setDate(salida.getDate() + 1);
+                    fechaSalida.value = salida.toISOString().slice(0, 10);
+                    fechaSalida.dispatchEvent(new Event('input'));
+                }
+            }
+
+            block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            block.classList.add('ring-2', 'ring-cyan-400');
+            setTimeout(() => block.classList.remove('ring-2', 'ring-cyan-400'), 1500);
+            block.querySelector('.hospedaje-hotel-select')?.focus();
+            actualizarVistaPorDia();
+        });
+    }
+
+    const proveedorQuickAdd = document.getElementById('proveedor-quick-add');
+    const proveedorQuickAddDia = document.getElementById('proveedor-quick-add-dia');
+    const proveedorQuickAddSelect = document.getElementById('proveedor-quick-add-select');
+    let proveedorQuickAddActive = false;
+    let proveedorQuickAddFecha = '';
+
+    function abrirSelectorProveedor(fecha, diaLabel) {
+        if (!proveedorQuickAdd) return;
+        proveedorQuickAddActive = true;
+        proveedorQuickAddFecha = fecha || '';
+        proveedorQuickAddDia.textContent = diaLabel;
+        proveedorQuickAddSelect.value = '';
+        proveedorQuickAdd.classList.remove('hidden');
+        proveedorQuickAdd.classList.add('flex');
+        proveedorQuickAddSelect.focus();
+    }
+
+    function cerrarSelectorProveedor() {
+        proveedorQuickAddActive = false;
+        proveedorQuickAdd.classList.add('hidden');
+        proveedorQuickAdd.classList.remove('flex');
+    }
+
+    document.getElementById('proveedor-quick-add-cancel')?.addEventListener('click', cerrarSelectorProveedor);
+    document.getElementById('proveedor-quick-add-close')?.addEventListener('click', cerrarSelectorProveedor);
+    proveedorQuickAdd?.addEventListener('click', (e) => {
+        if (e.target === proveedorQuickAdd) cerrarSelectorProveedor();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && proveedorQuickAddActive) cerrarSelectorProveedor();
+    });
+
+    document.getElementById('proveedor-quick-add-confirm')?.addEventListener('click', () => {
+        const proveedorId = proveedorQuickAddSelect.value;
+        if (!proveedorId || !proveedorQuickAddActive) return;
+
+        const checkbox = document.querySelector(`input[name="proveedores[]"][value="${proveedorId}"]`);
+        if (!checkbox) {
+            alert('No se encontró ese proveedor en la lista de abajo.');
+            return;
+        }
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change'));
+
+        if (proveedorQuickAddFecha) {
+            const wrap = checkbox.closest('label')?.querySelector('.proveedor-fechas-wrap');
+            if (wrap) window.agregarFechaProveedor?.(wrap, proveedorQuickAddFecha);
+        }
+
+        const card = checkbox.closest('label');
+        card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card?.classList.add('ring-2', 'ring-amber-400');
+        setTimeout(() => card?.classList.remove('ring-2', 'ring-amber-400'), 1500);
+
+        cerrarSelectorProveedor();
+        actualizarVistaPorDia();
     });
 
     let rowSeq = 0;
@@ -142,50 +304,194 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = tbody.closest('form');
     form?.addEventListener('submit', () => {
         tbody.querySelectorAll('.itinerario-row').forEach((tr) => {
-            const idInput = tr.querySelector('.itinerario-id-input');
-            const resolved = !!idInput.value;
+            const actividadSelect = tr.querySelector('.itinerario-actividad');
+            const resolved = !!actividadSelect.value;
             tr.querySelector('.itinerario-fecha').disabled = !resolved;
             tr.querySelector('.itinerario-cantidad').disabled = !resolved;
-            idInput.disabled = !resolved;
+            tr.querySelector('.itinerario-cantidad-ninos').disabled = !resolved;
+            actividadSelect.disabled = !resolved;
         });
     });
 
     function recomputeRow(tr) {
         const cantidadInput = tr.querySelector('.itinerario-cantidad');
+        const cantidadNinosInput = tr.querySelector('.itinerario-cantidad-ninos');
         const totalInput = tr.querySelector('.itinerario-total');
         const distrInput = tr.querySelector('.itinerario-distr');
-        const idInput = tr.querySelector('.itinerario-id-input');
+        const actividadSelect = tr.querySelector('.itinerario-actividad');
         const cant = parseFloat(cantidadInput.value || '0') || 0;
-        const regular = parseFloat(window.itinerarioCostos[idInput.value] ?? 0) || 0;
-        const promo = parseFloat(window.itinerarioCostosPromo[idInput.value] ?? regular) || 0;
-        const total = promo * cant;
+        const cantNinos = parseFloat(cantidadNinosInput.value || '0') || 0;
+        const regular = parseFloat(window.itinerarioCostos[actividadSelect.value] ?? 0) || 0;
+        const promo = parseFloat(window.itinerarioCostosPromo[actividadSelect.value] ?? regular) || 0;
+        const regularNino = parseFloat(window.itinerarioCostosNino[actividadSelect.value] ?? 0) || 0;
+        const promoNino = parseFloat(window.itinerarioCostosPromoNino[actividadSelect.value] ?? regularNino) || 0;
+        const confidencial = (regular * cant) + (regularNino * cantNinos);
+        const total = (promo * cant) + (promoNino * cantNinos);
         totalInput.value = total ? total.toFixed(2) : '';
-        distrInput.value = cant ? (total / cant).toFixed(2) : '';
+        distrInput.value = confidencial ? confidencial.toFixed(2) : '';
     }
 
-    function setRowResolved(tr, resolved) {
-        const noMatchMsg = tr.querySelector('.itinerario-no-match-msg');
-        noMatchMsg.classList.toggle('hidden', resolved);
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    function applyMatch(tr, tourInput, match) {
-        const idInput = tr.querySelector('.itinerario-id-input');
-        if (match) {
-            idInput.value = match.id;
-            window.itinerarioCostos[match.id] = match.costo;
-            window.itinerarioCostosPromo[match.id] = match.costo_promo ?? match.costo;
-            setRowResolved(tr, true);
-        } else {
-            idInput.value = '';
-            setRowResolved(tr, false);
+    function buildArbolActividades() {
+        const arbol = [];
+        tree.forEach((destino) => {
+            const actividadesDestino = catalogo.filter((it) => String(it.destino_id) === String(destino.id));
+            if (!actividadesDestino.length) return;
+            const categorias = [];
+            (destino.categorias || []).forEach((categoria) => {
+                const actividadesCategoria = actividadesDestino.filter((it) => String(it.categoria_id) === String(categoria.id));
+                if (actividadesCategoria.length) categorias.push({ id: categoria.id, nombre: categoria.nombre, actividades: actividadesCategoria });
+            });
+            const sinCategoria = actividadesDestino.filter((it) => !it.categoria_id);
+            if (sinCategoria.length) categorias.push({ id: '', nombre: 'Sin categoría', actividades: sinCategoria });
+            arbol.push({ id: destino.id, nombre: destino.nombre, categorias });
+        });
+        return arbol;
+    }
+
+    function renderArbolHtml(arbol) {
+        return arbol.map((destino) => `
+            <div class="arbol-destino">
+                <button type="button" class="arbol-destino-toggle w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700">
+                    <span class="truncate">${escapeHtml(destino.nombre)}</span>
+                    <i class="fas fa-chevron-right text-[10px] text-gray-400 shrink-0 transition-transform"></i>
+                </button>
+                <div class="arbol-categorias hidden pl-3 ml-2.5 border-l border-gray-100 dark:border-slate-700">
+                    ${destino.categorias.map((categoria) => `
+                        <div class="arbol-categoria">
+                            <button type="button" class="arbol-categoria-toggle w-full flex items-center justify-between gap-2 px-2 py-1 text-left text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700">
+                                <span class="truncate">${escapeHtml(categoria.nombre)}</span>
+                                <i class="fas fa-chevron-right text-[10px] text-gray-400 shrink-0 transition-transform"></i>
+                            </button>
+                            <div class="arbol-actividades hidden pl-3 ml-2.5 border-l border-gray-100 dark:border-slate-700">
+                                ${categoria.actividades.map((act) => `
+                                    <button type="button" class="arbol-actividad w-full text-left px-2 py-1 text-gray-700 dark:text-slate-200 hover:bg-purple-50 hover:text-purple-700 dark:hover:bg-purple-950/30 dark:hover:text-purple-200 truncate" data-id="${act.id}" data-nombre="${escapeHtml(act.nombre)}">${escapeHtml(act.nombre)}</button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    const actividadPanel = document.getElementById('actividad-picker-panel');
+    const actividadBuscar = document.getElementById('actividad-picker-buscar');
+    const actividadArbolEl = document.getElementById('actividad-picker-arbol');
+    let actividadPickerTarget = null;
+
+    if (actividadArbolEl) {
+        actividadArbolEl.innerHTML = renderArbolHtml(buildArbolActividades());
+    }
+
+    function resetArbolFiltro() {
+        actividadArbolEl.querySelectorAll('.arbol-destino, .arbol-categoria, .arbol-actividad').forEach((el) => el.classList.remove('hidden'));
+        actividadArbolEl.querySelectorAll('.arbol-categorias, .arbol-actividades').forEach((el) => el.classList.add('hidden'));
+        actividadArbolEl.querySelectorAll('.fa-chevron-right').forEach((i) => i.classList.remove('rotate-90'));
+    }
+
+    actividadArbolEl?.addEventListener('click', (e) => {
+        const destinoToggle = e.target.closest('.arbol-destino-toggle');
+        if (destinoToggle) {
+            destinoToggle.nextElementSibling.classList.toggle('hidden');
+            destinoToggle.querySelector('i').classList.toggle('rotate-90');
+            return;
         }
+        const categoriaToggle = e.target.closest('.arbol-categoria-toggle');
+        if (categoriaToggle) {
+            categoriaToggle.nextElementSibling.classList.toggle('hidden');
+            categoriaToggle.querySelector('i').classList.toggle('rotate-90');
+            return;
+        }
+        const actividadBtn = e.target.closest('.arbol-actividad');
+        if (actividadBtn) {
+            seleccionarActividadEnPanel(actividadBtn.dataset.id, actividadBtn.dataset.nombre);
+        }
+    });
+
+    actividadBuscar?.addEventListener('input', () => {
+        const q = actividadBuscar.value.trim().toLowerCase();
+        if (!q) {
+            resetArbolFiltro();
+            return;
+        }
+
+        actividadArbolEl.querySelectorAll('.arbol-actividad').forEach((btn) => {
+            btn.classList.toggle('hidden', !btn.dataset.nombre.toLowerCase().includes(q));
+        });
+        actividadArbolEl.querySelectorAll('.arbol-categoria').forEach((catEl) => {
+            const visibles = catEl.querySelectorAll('.arbol-actividad:not(.hidden)').length;
+            catEl.classList.toggle('hidden', visibles === 0);
+            catEl.querySelector('.arbol-actividades').classList.toggle('hidden', visibles === 0);
+        });
+        actividadArbolEl.querySelectorAll('.arbol-destino').forEach((destEl) => {
+            const visibles = destEl.querySelectorAll('.arbol-categoria:not(.hidden)').length;
+            destEl.classList.toggle('hidden', visibles === 0);
+            destEl.querySelector('.arbol-categorias').classList.toggle('hidden', visibles === 0);
+        });
+    });
+
+    function abrirActividadPicker(trigger, hiddenInput, labelEl, tr) {
+        if (!actividadPanel) return;
+        actividadPickerTarget = { hiddenInput, labelEl, tr };
+
+        const rect = trigger.getBoundingClientRect();
+        const panelWidth = Math.max(rect.width, 288);
+        const panelMaxHeight = 320;
+
+        let left = Math.max(8, rect.left);
+        if (left + panelWidth > window.innerWidth - 8) left = Math.max(8, window.innerWidth - panelWidth - 8);
+
+        const spaceBelow = window.innerHeight - rect.bottom;
+        actividadPanel.style.width = panelWidth + 'px';
+        actividadPanel.style.left = left + 'px';
+        if (spaceBelow < panelMaxHeight && rect.top > spaceBelow) {
+            actividadPanel.style.top = 'auto';
+            actividadPanel.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+        } else {
+            actividadPanel.style.bottom = 'auto';
+            actividadPanel.style.top = (rect.bottom + 4) + 'px';
+        }
+
+        actividadPanel.classList.remove('hidden');
+        actividadBuscar.value = '';
+        resetArbolFiltro();
+        actividadBuscar.focus();
+    }
+
+    function cerrarActividadPicker() {
+        actividadPanel?.classList.add('hidden');
+        actividadPickerTarget = null;
+    }
+
+    function seleccionarActividadEnPanel(id, nombre) {
+        if (!actividadPickerTarget) return;
+        const { hiddenInput, labelEl, tr } = actividadPickerTarget;
+        hiddenInput.value = id;
+        labelEl.textContent = nombre;
+        labelEl.classList.remove('text-gray-400', 'dark:text-slate-500');
         recomputeRow(tr);
         window.recomputeResumenFactura?.();
+        cerrarActividadPicker();
     }
+
+    document.addEventListener('click', (e) => {
+        if (!actividadPanel || actividadPanel.classList.contains('hidden')) return;
+        if (actividadPanel.contains(e.target) || e.target.closest('.itinerario-actividad-trigger')) return;
+        cerrarActividadPicker();
+    });
+    document.addEventListener('scroll', (e) => {
+        if (!actividadPanel || actividadPanel.classList.contains('hidden')) return;
+        if (actividadPanel.contains(e.target)) return;
+        cerrarActividadPicker();
+    }, true);
+    window.addEventListener('resize', cerrarActividadPicker);
 
     function createRow(data) {
         rowSeq++;
-        const rowId = 'row-' + rowSeq;
         const esFilaCargada = data.cantidad !== undefined && data.cantidad !== null;
 
         const tr = document.createElement('tr');
@@ -195,38 +501,64 @@ document.addEventListener('DOMContentLoaded', () => {
             <td class="text-gray-400 dark:text-slate-500 align-top pt-2 cursor-grab" title="Arrastrar para reordenar">
                 <i class="fas fa-grip-vertical"></i>
             </td>
+            <td class="py-1.5 pr-2 align-top pt-2.5">
+                <span class="itinerario-dia-label text-xs font-semibold text-gray-500 dark:text-slate-400">—</span>
+            </td>
             <td class="py-1.5 pr-2 align-top">
                 <input type="date" class="itinerario-fecha w-full px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" name="itinerarios_fecha[]">
                 <p class="itinerario-fecha-error text-[11px] text-red-600 dark:text-red-400 mt-0.5 hidden"></p>
             </td>
             <td class="py-1.5 pr-2 align-top">
-                <input type="text" list="tours-datalist" id="${rowId}-tour" class="itinerario-tour-input w-full px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" placeholder="Escribe o elige un tour...">
-                <input type="hidden" class="itinerario-id-input" name="itinerarios[]">
-                <p class="itinerario-no-match-msg text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 hidden">No coincide con ningún tour del catálogo.</p>
+                <button type="button" class="itinerario-actividad-trigger w-full flex items-center justify-between gap-1 px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                    <span class="itinerario-actividad-label truncate text-gray-400 dark:text-slate-500">Selecciona actividad...</span>
+                    <i class="fas fa-chevron-down text-[10px] text-gray-400 shrink-0"></i>
+                </button>
+                <input type="hidden" class="itinerario-actividad" name="itinerarios[]" value="">
             </td>
             <td class="py-1.5 pr-2 align-top">
-                <input type="number" min="1" class="itinerario-cantidad w-full px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" name="itinerarios_cantidad[]">
+                <input type="number" min="0" class="itinerario-cantidad w-full px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" name="itinerarios_cantidad[]">
                 <p class="itinerario-cantidad-error text-[11px] text-red-600 dark:text-red-400 mt-0.5 hidden"></p>
             </td>
             <td class="py-1.5 pr-2 align-top">
-                <input type="text" disabled class="itinerario-distr w-full px-2 py-1 text-sm border border-gray-200 rounded-lg bg-gray-100 text-gray-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
+                <input type="number" min="0" class="itinerario-cantidad-ninos w-full px-2 py-1 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" name="itinerarios_cantidad_ninos[]">
+            </td>
+            <td class="py-1.5 pr-2 align-top">
+                <input type="text" disabled title="Precio confidencial (solo lectura)" class="itinerario-distr w-full px-2 py-1 text-sm border border-gray-200 rounded-lg bg-gray-100 text-gray-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
             </td>
             <td class="py-1.5 pr-2 align-top">
                 <input type="text" disabled class="itinerario-total w-full px-2 py-1 text-sm border border-gray-200 rounded-lg bg-gray-100 text-gray-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
             </td>
-            <td class="py-1.5 align-top">
-                <button type="button" class="remove-itinerario-btn text-red-600 hover:text-red-800 dark:text-red-400"><i class="fas fa-trash"></i></button>
+            <td class="py-1.5 align-top whitespace-nowrap">
+                <button type="button" class="row-add-hotel-btn text-cyan-600 hover:text-cyan-800 dark:text-cyan-400 mr-2" title="Agregar hotel para esta actividad"><i class="fas fa-hotel"></i></button>
+                <button type="button" class="row-add-proveedor-btn text-amber-600 hover:text-amber-800 dark:text-amber-400 mr-2" title="Agregar proveedor para esta actividad"><i class="fas fa-truck-fast"></i></button>
+                <button type="button" class="remove-itinerario-btn text-red-600 hover:text-red-800 dark:text-red-400" title="Quitar fila"><i class="fas fa-trash"></i></button>
             </td>
         `;
 
         const fechaInput = tr.querySelector('.itinerario-fecha');
-        const tourInput = tr.querySelector('.itinerario-tour-input');
-        const idInput = tr.querySelector('.itinerario-id-input');
         const cantidadInput = tr.querySelector('.itinerario-cantidad');
+        const cantidadNinosInput = tr.querySelector('.itinerario-cantidad-ninos');
+        const actividadTrigger = tr.querySelector('.itinerario-actividad-trigger');
+        const actividadLabel = tr.querySelector('.itinerario-actividad-label');
+        const actividadSelect = tr.querySelector('.itinerario-actividad');
+
+        if (data.id) {
+            actividadSelect.value = data.id;
+            actividadLabel.textContent = data.nombre || ('#' + data.id);
+            actividadLabel.classList.remove('text-gray-400', 'dark:text-slate-500');
+        }
+
+        actividadTrigger.addEventListener('click', () => {
+            abrirActividadPicker(actividadTrigger, actividadSelect, actividadLabel, tr);
+        });
+
+        const esFilaCargadaNinos = data.cantidad_ninos !== undefined && data.cantidad_ninos !== null;
 
         fechaInput.value = data.fecha || '';
         cantidadInput.value = data.cantidad ?? (parseFloat(paxAdultosInput?.value || '1') || 1);
         cantidadInput.dataset.autoMode = esFilaCargada ? 'false' : 'true';
+        cantidadNinosInput.value = data.cantidad_ninos ?? (parseFloat(paxNinosInput?.value || '0') || 0);
+        cantidadNinosInput.dataset.autoMode = esFilaCargadaNinos ? 'false' : 'true';
 
         if (data.fecha_error) {
             fechaInput.classList.add('border-red-500', 'focus:ring-red-500');
@@ -241,11 +573,10 @@ document.addEventListener('DOMContentLoaded', () => {
             cantidadErrorMsg.classList.remove('hidden');
         }
 
-        let ultimoValorValido = '';
-
         fechaInput.addEventListener('input', () => {
             fechaInput.classList.remove('border-red-500', 'focus:ring-red-500');
             tr.querySelector('.itinerario-fecha-error').classList.add('hidden');
+            actualizarVistaPorDia();
             window.recomputeResumenFactura?.();
         });
 
@@ -257,46 +588,30 @@ document.addEventListener('DOMContentLoaded', () => {
             window.recomputeResumenFactura?.();
         });
 
-        tourInput.addEventListener('mousedown', () => {
-            ultimoValorValido = tourInput.value;
-            tourInput.value = '';
+        cantidadNinosInput.addEventListener('input', () => {
+            cantidadNinosInput.dataset.autoMode = 'false';
+            recomputeRow(tr);
+            window.recomputeResumenFactura?.();
         });
 
-        tourInput.addEventListener('blur', () => {
-            if (!tourInput.value.trim() && ultimoValorValido) {
-                tourInput.value = ultimoValorValido;
-            }
+        tr.querySelector('.row-add-hotel-btn').addEventListener('click', () => {
+            agregarHotelParaDia(fechaInput.value || null);
         });
 
-        tourInput.addEventListener('input', () => {
-            const value = tourInput.value.trim();
-            if (!value) {
-                tr.querySelector('.itinerario-id-input').value = '';
-                setRowResolved(tr, true);
-                recomputeRow(tr);
-                window.recomputeResumenFactura?.();
-                return;
-            }
-            const match = catalogoPorNombre[value.toLowerCase()];
-            if (match) {
-                ultimoValorValido = match.nombre;
-            }
-            applyMatch(tr, tourInput, match || null);
+        tr.querySelector('.row-add-proveedor-btn').addEventListener('click', () => {
+            const val = fechaInput.value;
+            const nombreActividad = actividadLabel.textContent || 'esta actividad';
+            const label = val
+                ? new Date(val + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : nombreActividad + ' (sin fecha)';
+            abrirSelectorProveedor(val || '', label);
         });
 
         tbody.appendChild(tr);
         emptyMsg.classList.add('hidden');
 
-        if (data.id) {
-            tourInput.value = data.nombre;
-            ultimoValorValido = data.nombre;
-            idInput.value = data.id;
-            window.itinerarioCostos[data.id] = data.costo;
-            window.itinerarioCostosPromo[data.id] = data.costo_promo ?? data.costo;
-        }
-        setRowResolved(tr, true);
-
         recomputeRow(tr);
+        actualizarVistaPorDia();
 
         tr.addEventListener('dragstart', () => {
             draggedRow = tr;
@@ -331,77 +646,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const destinoSelect = document.getElementById('picker-destino');
-    if (destinoSelect) {
-        const categoriaSelect = document.getElementById('picker-categoria');
-        const itinerarioSelect = document.getElementById('picker-itinerario');
-        const addFromPickerBtn = document.getElementById('add-fila-desde-picker-btn');
-        const tree = window.tourPickerCategoryTree || [];
-
-        function resetSelect(select, placeholder, disabled) {
-            select.innerHTML = '';
-            select.appendChild(new Option(placeholder, ''));
-            select.disabled = disabled;
-        }
-
-        function fetchItinerariosParaPicker() {
-            resetSelect(itinerarioSelect, 'Cargando...', true);
-            addFromPickerBtn.disabled = true;
-            const params = new URLSearchParams();
-            if (destinoSelect.value) params.set('destino_id', destinoSelect.value);
-            if (categoriaSelect.value) params.set('categoria_id', categoriaSelect.value);
-            fetch('{{ route('itineraries.search') }}?' + params.toString())
-                .then((res) => res.json())
-                .then((items) => {
-                    resetSelect(itinerarioSelect, items.length ? 'Selecciona...' : 'Sin resultados con este filtro', false);
-                    items.forEach((it) => {
-                        const precios = [];
-                        if (it.costo !== null && it.costo !== undefined && it.costo !== '') precios.push('$' + parseFloat(it.costo).toFixed(2));
-                        if (it.costo_promo !== null && it.costo_promo !== undefined && it.costo_promo !== '') precios.push('promo $' + parseFloat(it.costo_promo).toFixed(2));
-                        const sufijo = precios.length ? ' — ' + precios.join(' / ') : '';
-                        const opt = new Option(it.nombre + sufijo, it.id);
-                        opt.dataset.nombre = it.nombre;
-                        opt.dataset.costo = it.costo ?? '';
-                        opt.dataset.costoPromo = it.costo_promo ?? '';
-                        itinerarioSelect.appendChild(opt);
-                    });
-                });
-        }
-
-        destinoSelect.addEventListener('change', () => {
-            const destino = tree.find((d) => String(d.id) === String(destinoSelect.value));
-            resetSelect(categoriaSelect, destino ? 'Todas' : 'Elige un destino...', !destino);
-            if (destino) {
-                destino.categorias.forEach((c) => categoriaSelect.appendChild(new Option(c.nombre, c.id)));
-            }
-            if (destino) {
-                fetchItinerariosParaPicker();
-            } else {
-                resetSelect(itinerarioSelect, 'Elige un destino...', true);
-                addFromPickerBtn.disabled = true;
-            }
-        });
-
-        categoriaSelect.addEventListener('change', fetchItinerariosParaPicker);
-
-        itinerarioSelect.addEventListener('change', () => {
-            addFromPickerBtn.disabled = !itinerarioSelect.value;
-        });
-
-        addFromPickerBtn.addEventListener('click', () => {
-            if (!itinerarioSelect.value) return;
-            const opt = itinerarioSelect.options[itinerarioSelect.selectedIndex];
-            createRow({
-                id: itinerarioSelect.value,
-                nombre: opt.dataset.nombre,
-                costo: opt.dataset.costo || null,
-                costo_promo: opt.dataset.costoPromo || null,
+    if (paxNinosInput) {
+        paxNinosInput.addEventListener('input', () => {
+            tbody.querySelectorAll('.itinerario-row').forEach((tr) => {
+                const cantidadNinosInput = tr.querySelector('.itinerario-cantidad-ninos');
+                if (cantidadNinosInput.dataset.autoMode === 'true') {
+                    cantidadNinosInput.value = parseFloat(paxNinosInput.value || '0') || 0;
+                    recomputeRow(tr);
+                }
             });
             window.recomputeResumenFactura?.();
         });
     }
 
     (window.initialItinerarios || []).forEach((it) => createRow(it));
+    actualizarVistaPorDia();
     window.recomputeResumenFactura?.();
 
     document.getElementById('add-fila-btn').addEventListener('click', () => {
@@ -410,34 +669,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const paqueteSelect = document.getElementById('paquete-select');
-    const paqueteFechaInicio = document.getElementById('paquete-fecha-inicio');
     const aplicarPaqueteBtn = document.getElementById('aplicar-paquete-btn');
 
     function actualizarEstadoBotonPaquete() {
         if (!aplicarPaqueteBtn) return;
-        aplicarPaqueteBtn.disabled = !paqueteSelect.value || !paqueteFechaInicio.value;
+        aplicarPaqueteBtn.disabled = !paqueteSelect.value;
     }
     paqueteSelect?.addEventListener('change', actualizarEstadoBotonPaquete);
-    paqueteFechaInicio?.addEventListener('input', actualizarEstadoBotonPaquete);
 
     aplicarPaqueteBtn?.addEventListener('click', () => {
-        if (!paqueteSelect.value || !paqueteFechaInicio.value) return;
+        if (!paqueteSelect.value) return;
         aplicarPaqueteBtn.disabled = true;
 
         fetch(`/itinerary-packages/${paqueteSelect.value}/items`)
             .then((res) => res.json())
             .then((items) => {
-                const inicio = new Date(paqueteFechaInicio.value + 'T00:00:00');
                 items.forEach((item) => {
-                    const fecha = new Date(inicio);
-                    fecha.setDate(fecha.getDate() + (parseInt(item.dia, 10) || 1) - 1);
-                    const fechaStr = fecha.toISOString().slice(0, 10);
                     createRow({
                         id: item.id,
                         nombre: item.nombre,
                         costo: item.costo,
                         costo_promo: item.costo_promo,
-                        fecha: fechaStr,
+                        costo_nino: item.costo_nino,
+                        costo_promo_nino: item.costo_promo_nino,
+                        fecha: null,
                         cantidad: item.cantidad_pax_defecto ?? (parseFloat(paxAdultosInput?.value || '1') || 1),
                     });
                 });
@@ -457,7 +712,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const removeBtn = e.target.closest('.remove-itinerario-btn');
         if (removeBtn) {
             removeBtn.closest('tr').remove();
-            if (!tbody.querySelector('tr')) emptyMsg.classList.remove('hidden');
+            actualizarVistaPorDia();
+            if (!tbody.querySelector('.itinerario-row')) emptyMsg.classList.remove('hidden');
             window.recomputeResumenFactura?.();
         }
     });

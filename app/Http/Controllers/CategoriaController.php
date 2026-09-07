@@ -11,9 +11,7 @@ class CategoriaController extends Controller
 {
     public function index()
     {
-        $categorias = Categoria::withCount('subcategorias')->with('destino')->orderBy('nombre')->get();
-        $destinos = Destino::orderBy('nombre')->get();
-        return view('categorias.index', compact('categorias', 'destinos'));
+        return redirect()->route('destinos.index');
     }
 
     public function create()
@@ -39,7 +37,7 @@ class CategoriaController extends Controller
 
         Categoria::create($validated);
 
-        return redirect()->route('categorias.index')->with('success', 'Categoría creada.');
+        return redirect()->route('destinos.index')->with('success', 'Categoría creada.');
     }
 
     public function edit(Categoria $categoria)
@@ -66,7 +64,7 @@ class CategoriaController extends Controller
 
         $categoria->update($validated);
 
-        return redirect()->route('categorias.index')->with('success', 'Categoría actualizada.');
+        return redirect()->route('destinos.index')->with('success', 'Categoría actualizada.');
     }
 
     public function destroy(Categoria $categoria)
@@ -74,10 +72,10 @@ class CategoriaController extends Controller
         try {
             $categoria->delete();
         } catch (QueryException $e) {
-            return redirect()->route('categorias.index')
-                ->with('error', 'No se puede eliminar: hay subcategorías usando esta categoría.');
+            return redirect()->route('destinos.index')
+                ->with('error', 'No se puede eliminar: hay actividades u hoteles usando esta categoría.');
         }
 
-        return redirect()->route('categorias.index')->with('success', 'Categoría eliminada.');
+        return redirect()->route('destinos.index')->with('success', 'Categoría eliminada.');
     }
 }

@@ -2,7 +2,7 @@
 @section('title', 'Editar Destino')
 @section('content')
 <h1 class="text-2xl font-bold text-gray-800 mb-6 dark:text-slate-100">Editar Destino</h1>
-<div class="bg-white rounded-xl shadow p-6 md:p-8 max-w-3xl dark:bg-slate-900 dark:shadow-slate-950/50">
+<div class="bg-white rounded-xl shadow p-6 md:p-8 dark:bg-slate-900 dark:shadow-slate-950/50">
     <form method="POST" action="{{ route('destinos.update', $destino) }}">
         @csrf @method('PUT')
         <div class="mb-6">
